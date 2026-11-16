@@ -5,13 +5,17 @@ section: Concepts
 order: 2
 ---
 
-The Model is the durable state owned by the application. Messages are the closed set of events the application handles. `update(model, message)` describes the next state and any requested effects; the View is a pure projection of state to UI. This makes transitions reviewable and testable without a browser.
+The Model is the durable state owned by the application. Messages are the closed set of events the application handles. An update returns the next Model, optionally with Commands; it does not return the Model directly. The View is a pure projection of that Model into UI. This makes transitions reviewable and testable without a browser.
 
 ```ts compile
+import type * as Update from '@wsagency/wseffect-foldkit/update'
+
 type Model = { readonly count: number }
 type Message = { readonly _tag: 'Increment' }
-const update = (model: Model, message: Message): Model =>
-  message._tag === 'Increment' ? { count: model.count + 1 } : model
+const update = (model: Model, message: Message): Update.Return<Model, Message> =>
+  message._tag === 'Increment'
+    ? { model: { count: model.count + 1 } }
+    : { model }
 ```
 
 Views receive messages from event handlers; they should not mutate the Model directly. Keep ephemeral DOM details out of application state unless they affect behavior.

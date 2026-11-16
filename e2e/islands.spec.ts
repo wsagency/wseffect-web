@@ -17,9 +17,9 @@ test('TextField input updates its Foldkit model and output', async ({ page }) =>
 
 test('Select opens its popover and commits Blue', async ({ page }) => {
   const select = page.locator('[data-island="select"]')
-  await select.getByRole('button').click()
+  await select.getByRole('combobox', { name: 'docs-color-select' }).click()
   await expect(page.locator('#foldkit-portal-root').getByRole('option', { name: 'Blue' })).toBeVisible()
-  await page.getByRole('option', { name: 'Blue' }).click()
+  await page.locator('#foldkit-portal-root').getByRole('option', { name: 'Blue' }).click()
   await expect(select.locator('[data-selected-value="blue"]')).toContainText('Selected color: blue')
 })
 

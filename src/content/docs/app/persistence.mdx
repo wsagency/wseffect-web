@@ -9,8 +9,13 @@ order: 8
 
 ```ts compile
 import { Result, Schema } from 'effect'
-import { persist } from '@wsagency/wseffect-app'
-const prefs = persist({
+import { persist, type PersistenceFailure } from '@wsagency/wseffect-app'
+
+type Preferences = { readonly favorites: ReadonlyArray<string> }
+type Message =
+  | { readonly _tag: 'RemotePreferencesWon'; readonly value: Preferences }
+  | { readonly _tag: 'PersistenceFailed'; readonly failure: PersistenceFailure }
+const prefs = persist<Preferences, Message>({
   key: 'preferences', version: 1,
   schema: Schema.Struct({ favorites: Schema.Array(Schema.String) }),
   defaultValue: { favorites: [] }, conflictPolicy: 'local-wins',

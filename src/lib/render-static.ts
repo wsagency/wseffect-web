@@ -1,13 +1,12 @@
 import { Effect } from 'effect'
-import { inertHtml } from '@wsagency/wseffect-foldkit/html'
-import type { Html } from '@wsagency/wseffect-foldkit/html'
+import type { Html, HtmlBuilder } from '@wsagency/wseffect-foldkit/html'
 import { renderToString } from '@wsagency/wseffect-foldkit/experimental/server'
 import * as Theme from '@wsagency/wseffect-themes/components/theme'
 /** Static examples are serialized by Foldkit's experimental server renderer; render failures intentionally fail the Astro build. */
-export function renderStatic(view: (h: typeof inertHtml) => Html): string {
+export function renderStatic<Message>(view: (h: HtmlBuilder<Message>) => Html): string {
   const config = {
     init: () => ({ model: null }),
-    view: (_model: null, h: typeof inertHtml) => ({ title: 'Static example', body: view(h) }),
+    view: (_model: null, h: HtmlBuilder<Message>) => ({ title: 'Static example', body: view(h) }),
   }
   return Effect.runSync(renderToString(config, { isHydratable: false })).html
 }

@@ -19,7 +19,7 @@ import DocsLayout from '../layouts/DocsLayout.astro'
     <article class="info-card"><h3>See the runtime</h3><p>Real Foldkit programs power the select, dialog, tabs, table, and theme demos.</p><a href="/demos/">Open the demo gallery →</a></article>
   </div>
   <h2>Built around explicit state</h2>
-  <pre><code class="language-ts">type Model = { count: number }
+  <pre tabindex="0"><code class="language-ts" is:raw>type Model = { count: number }
 type Message = { _tag: 'Increment' } | { _tag: 'Decrement' }
 
 const update = (model: Model, message: Message) =&gt;

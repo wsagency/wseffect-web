@@ -21,4 +21,4 @@ mise exec node@24.21.0 pnpm@11.5.0 -- pnpm check
 
 Release metadata requires a real Git commit or an explicitly supplied full commit SHA via `SOURCE_SHA`. An unborn checkout cannot produce release metadata implicitly. Temporary acceptance artifacts belong under `$HOME/.cache/wseffect-work`.
 
-The root manifest pins all five wseffect packages to registry version `0.1.0-rc.1`; there are no workspace packages or local package sources. TypeScript is pinned to 7.0.2, matching the library's compiler baseline. Wrangler serves the static-assets Worker; the documentation site has no service worker or PWA manifest. Cloudflare deployment is a separate authorized operation, not part of local checks.
+The root manifest pins all five wseffect packages to registry version `0.1.0-rc.1`; there are no workspace packages or local package sources. The site's declaration generators use TypeScript 6.0.3 for its compiler API; the starters retain TypeScript 7.0.2. Wrangler serves the static-assets Worker; the documentation site has no service worker or PWA manifest. Cloudflare deployment is a separate authorized operation, not part of local checks.

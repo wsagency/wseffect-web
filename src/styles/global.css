@@ -14,8 +14,8 @@
   --line: var(--gray-6, #dce3e9);
   --surface: var(--gray-1, #fff);
   --surface-soft: var(--gray-2, #f7f9fb);
-  --blue: var(--blue-11, #1556a3);
-  --blue-dark: var(--blue-12, #0e3d77);
+  --blue: #1556a3;
+  --blue-dark: #0e3d77;
   --green: var(--jade-11, #16785f);
   --code: 'DM Mono', ui-monospace, monospace;
 }
@@ -38,7 +38,7 @@ button, input, select { font: inherit; }
 .top-navigation a:hover { color: var(--blue-dark); }
 .page-grid { display: grid; grid-template-columns: 15.5rem minmax(0, 1fr); max-width: 90rem; min-height: calc(100vh - 11rem); margin: 0 auto; }
 .sidebar { padding: 2.25rem 1.25rem 2rem 2rem; border-right: 1px solid var(--line); }
-.sidebar-label { margin: 0 0 .8rem .6rem; color: #758394; font-family: var(--code); font-size: .67rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
+.sidebar-label { margin: 0 0 .8rem .6rem; color: #5f6d7c; font-family: var(--code); font-size: .67rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; }
 .sidebar nav, .mobile-navigation nav { display: grid; gap: .2rem; }
 .sidebar-link, .mobile-navigation nav a { padding: .55rem .65rem; border-radius: .35rem; color: #415265; font-size: .9rem; text-decoration: none; }
 .sidebar-link:hover, .mobile-navigation nav a:hover { background: #e9eff4; color: var(--ink); }
@@ -72,7 +72,7 @@ p, li { color: #46586a; line-height: 1.75; }
 .static-example, .demo-panel { margin: 1.5rem 0; border: 1px solid var(--line); border-radius: .65rem; background: #fff; box-shadow: 0 5px 20px rgba(27,52,76,.04); }
 .static-example figcaption { padding: .8rem 1rem; border-bottom: 1px solid var(--line); color: #536579; font-size: .8rem; font-weight: 700; }
 .static-example__preview, .demo-panel__body { padding: 1.25rem; }
-.docs-kicker { margin: 0 0 .5rem; color: #758394; font-size: .84rem; }
+.docs-kicker { margin: 0 0 .5rem; color: #5f6d7c; font-size: .84rem; }
 code, pre { font-family: var(--code); font-size: .88em; }
 :not(pre) > code { padding: .12rem .35rem; border: 1px solid #e0e6eb; border-radius: .25rem; color: #234c75; background: #f0f4f7; }
 pre { overflow-x: auto; padding: 1rem 1.2rem; border: 1px solid #263c50; border-radius: .55rem; color: #e8eef5; background: #172a3c; line-height: 1.65; }

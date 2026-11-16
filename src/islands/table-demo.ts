@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Command } from '@wsagency/wseffect-foldkit'
+import { Command, Submodel } from '@wsagency/wseffect-foldkit'
 import { defineMessageUnion } from '@wsagency/wseffect-foldkit/message'
 import { makeElement } from '@wsagency/wseffect-foldkit/runtime'
 import { inertHtml, type HtmlBuilder } from '@wsagency/wseffect-foldkit/html'
@@ -21,6 +21,10 @@ const config = (selectedRowIds: ReadonlyArray<string>): DataTable.Config<Row> =>
   caption: inertHtml.span([], ['Demo project records']), selectedRowIds: new Set(selectedRowIds),
   isGrid: true, rowHeight: 40, viewportHeight: 220, overscanRows: 3,
 })
+type TableViewInputs = { selectedRowIds: ReadonlyArray<string> }
+const tableView = Submodel.defineView<DataTable.Model, DataTable.Message, TableViewInputs>(
+  (model, inputs, h) => DataTable.view(model, config(inputs.selectedRowIds), h),
+)
 const Model = Schema.Struct({ table: DataTable.Model, selectedRowIds: Schema.Array(Schema.String) })
 const Message = defineMessageUnion({ TableEvent: { message: DataTable.Message } })
 type Model = typeof Model.Type
@@ -41,8 +45,22 @@ export function tableEntry(host: HTMLElement) {
       },
     }),
     view: (model: Model, h: HtmlBuilder<Message>) => h.div([h.DataAttribute('testid', 'records-table')], [
+      h.label([], [
+        'Filter rows',
+        h.input([
+          h.Type('search'), h.AriaLabel('Filter rows'), h.Value(model.table.filter),
+          h.OnInput(value => Message.TableEvent({ message: DataTable.Message.FilterChanged({ value }) })),
+        ]),
+      ]),
+      h.output([], [`${model.table.orderedRowIds.length} rows shown`]),
       h.p([h.AriaLive('polite')], [`${model.selectedRowIds.length} rows selected`]),
-      DataTable.view(model.table, config(model.selectedRowIds), h),
+      h.submodel({
+        slotId: 'docs-data-table',
+        model: model.table,
+        view: tableView,
+        viewInputs: { selectedRowIds: model.selectedRowIds },
+        toParentMessage: childMessage => Message.TableEvent({ message: childMessage }),
+      }),
     ]),
   })
 }

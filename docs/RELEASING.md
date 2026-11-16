@@ -1,8 +1,8 @@
 # Website release and deployment
 
-This runbook describes the local deployment tooling for the static Astro site and `wseffect-web` Cloudflare Worker. **It does not claim that the Worker, custom domain, DNS redirect, or website has been deployed.** Read-only discovery found that a Cloudflare Worker script named `wseffect-web` already exists and was unattached to a custom domain at discovery time; its deployed version and configuration are not part of this repository's source of truth. Before any production deployment, inspect that script's current version and configuration, record the exact rollback target, and obtain explicit owner approval to take over that exact script. Never assume the script is absent or silently overwrite it. If the owner chooses a different script name, its deployment target must be intentionally changed and reviewed before using this runbook. Worker adoption/first authorized publish, `wseffect.com` custom-domain setup, `www` DNS/301 configuration, and scoped-token provisioning remain separately owner-authorized external operations.
+This runbook describes the local deployment tooling for the static Astro site and `wseffect-web` Cloudflare Worker. **It does not claim that the Worker, custom domain, DNS redirect, or website has been deployed.** At the time of the latest operations review, the `wseffect-web` script was a placeholder returning HTTP 503; `workers.dev` and preview URLs were disabled. The recorded baseline rollback version is `d1abe22b-221d-4449-9f41-3b4cddc1f4a1`, which DevOps must recheck before any binding or deployment. Domain bindings and DNS are external operational state, not managed by this repository's source of truth.
 
-The deploy script only operates from a clean local `main` exactly matching freshly fetched `origin/main`. It takes an exclusive lock, creates a detached worktree at the guarded full commit SHA under `$HOME/.cache/wseffect-work/release-web/tmp` (override with `WSEFFECT_DEPLOY_TMP` only for an approved external path), performs the install/build/check and artifact gates there, and removes only that run's worktree and lock. It never builds in or removes output from the operator's checkout. Failed gates leave the checkout untouched.
+The deploy script only operates from a clean local `main` exactly matching freshly fetched `origin/main`. It takes an exclusive lock, creates a detached worktree at the guarded full commit SHA under `$HOME/.cache/wseffect-work/release-web/tmp` (override with `WSEFFECT_DEPLOY_TMP` only for an approved external path), performs the install/build/check and artifact gates there, and removes only that run's worktree, temporary files, and lock. It never builds in or removes output from the operator's checkout. Failed gates leave the checkout untouched.
 
 ## Local preparation
 
@@ -25,6 +25,18 @@ mise exec node@24.21.0 pnpm@11.5.0 -- pnpm deploy:site -- --dry-run
 
 Dry-run performs the guarded checkout, toolchain, registry-pin, build/check, artifact, and retained-asset validations. It does not retrieve a credential, call Wrangler, or make a production HTTP request. Fix any failure in source and repeat from a new clean commit; do not edit the deploy worktree.
 
+## Coordinated first-production bootstrap
+
+This sequence is approved only after the complete local acceptance pipeline and guarded dry-run succeed, and the deployment coordinator gives an explicit **GO**. That GO is not given by this runbook; do not infer it from successful checks or prior approval.
+
+1. Run the pinned `pnpm check` acceptance pipeline and the guarded `pnpm deploy:site -- --dry-run` from a clean, synchronized `main`. Resolve every failure before requesting GO.
+2. After GO, DevOps rechecks that the existing `wseffect-web` script is still at baseline version `d1abe22b-221d-4449-9f41-3b4cddc1f4a1`, still returns the placeholder 503, and still has `workers.dev` and preview URLs disabled. Stop if current state differs; do not overwrite an unexpected deployment.
+3. DevOps binds both `wseffect.com` and `www.wseffect.com` to the Worker, then verifies authoritative and public DNS answers and valid TLS while confirming the placeholder still returns 503. This Worker handles HTTP-to-HTTPS and `www`-to-apex redirects. Do not change zone-level settings.
+4. Wait for the deployment workstation's normal DNS resolution to reflect the bindings before deploying. Negative DNS caching can persist for up to 1800 seconds; wait for it to expire, and do not change resolver settings to bypass it.
+5. Only after the preceding checks and local DNS resolution, run the guarded production deploy below. Its existing live smoke checks, including `www` redirect and TLS requests, remain required and unchanged.
+
+For an owner-approved rollback after a failed deployment, bindings may remain in place while the placeholder 503 version is restored. A full rollback removes both custom-domain bindings and restores the original absence of custom-domain DNS records. The owner must choose and authorize rollback; this tooling never performs it automatically.
+
 ## Production deployment inputs and command
 
 The account ID is non-secret and must be configured explicitly from the owner's real Cloudflare account configuration; the script accepts only a 32-character hexadecimal `CLOUDFLARE_ACCOUNT_ID` and never guesses one. The scoped API token is read only after all local gates and an `origin/main` freshness check. After token lookup, the script fetches and checks `origin/main` again immediately before invoking Wrangler:
@@ -32,11 +44,11 @@ The account ID is non-secret and must be configured explicitly from the owner's 
 - Default: libsecret lookup `service=wseffect-web`, `key=CLOUDFLARE_API_TOKEN` via `secret-tool`.
 - Optional: set `WSEFFECT_TOKEN_SOURCE=pass` to read the existing `pass` entry `wseffect-web/CLOUDFLARE_API_TOKEN` instead.
 
-Provision the secret through the workstation's approved secret-management process; never paste it into a shell command, export it in the shell, put it in a file, or include it in chat. The token is removed from inherited child environments and is supplied only in the Wrangler process environment. The account ID and optional token-source selector are configuration, not credentials.
+Provision the secret through the workstation's approved secret-management process; never paste it into a shell command, export it in the shell, put it in a file, or include it in chat. The token is removed from inherited child environments and is supplied only in the Wrangler process environment. The account ID and optional token-source selector are configuration, not credentials. The approved token grants account-wide `Workers Scripts Edit`; explicitly accept this residual privilege risk for the first production publish. Do not substitute an existing broad-admin token.
 
 After all local gates and the final `origin/main` recheck, the normal deploy also requires `WSEFFECT_DEPLOY_TAKEOVER_APPROVED=yes`. Set it only after the owner has inspected the existing Worker, captured its rollback version, and explicitly approved taking over the named deployment target. Dry-run does not require this acknowledgement.
 
-After those owner approvals and completion of Cloudflare bootstrap, configure the account ID and run:
+Only after the bootstrap sequence has completed and the coordinator's explicit GO remains valid, configure the account ID and run:
 
 ```sh
 export CLOUDFLARE_ACCOUNT_ID='<32-character Cloudflare account ID>'
@@ -44,7 +56,7 @@ export WSEFFECT_DEPLOY_TAKEOVER_APPROVED=yes
 mise exec node@24.21.0 pnpm@11.5.0 -- pnpm deploy:site
 ```
 
-The operator should review the commit SHA printed by dry-run and ensure the domain/redirect prerequisites are already owner-approved. Wrangler deploys the pinned `wrangler@4.149.0` Worker with `--message <full-SHA>`. A success receipt containing SHA/version is written outside Git under the release store. The script then performs live HTTP smoke requests for the home and docs pages, `/version.json` SHA, a Markdown twin and HEAD response with `Vary: Accept`, unknown-route and missing-JavaScript 404s, robots/sitemap, a retained hashed asset, and the `www` 301 preserving path/query.
+The operator should review the commit SHA printed by dry-run and ensure the domain/redirect prerequisites are already owner-approved. Wrangler deploys the pinned `wrangler@4.149.0` Worker with `--message <full-SHA>`. The external receipt records the guarded SHA, site version, actual Wrangler Worker version ID, deploy time, and smoke status (`pending`, `passed`, or `failed`). The script then performs live HTTP smoke requests for home/docs no-cache pages, `/version.json` SHA, canonical docs Markdown negotiation via GET and HEAD with `Vary: Accept`, its direct Markdown twin, unknown-route and missing-JavaScript 404s, robots/sitemap, a retained hashed asset with immutable caching, and the `www` 301 preserving path/query.
 
 ## Retained assets and release store
 

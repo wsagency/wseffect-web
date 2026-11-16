@@ -10,6 +10,7 @@ Foldkit route parsers pair URL matching with URL building. Parse path segments a
 ```ts compile
 import { Effect, pipe, Schema } from 'effect'
 import { Command, Navigation, Port, Route, Subscription } from '@wsagency/wseffect-foldkit'
+import { defineMessageUnion } from '@wsagency/wseffect-foldkit/message'
 
 const SearchQuery = Schema.Struct({
   q: Schema.String,
@@ -30,40 +31,42 @@ const BrowserLocation = Schema.Struct({
   pathname: Schema.String,
   search: Schema.String,
 })
-const SearchRouteSelected = (route: SearchRouteState) => ({ _tag: 'SearchRouteSelected' as const, route })
-const InvalidSearchQuery = () => ({ _tag: 'InvalidSearchQuery' as const })
-const SearchNavigated = () => ({ _tag: 'SearchNavigated' as const })
-const LocationReceived = (location: typeof BrowserLocation.Type) => ({
-  _tag: 'LocationReceived' as const,
-  location,
+const SearchRouteSchema = Schema.Struct({
+  _tag: Schema.Literals(['Search']),
+  q: Schema.String,
+  page: Schema.optional(Schema.Number),
 })
-type Message =
-  | ReturnType<typeof SearchRouteSelected>
-  | ReturnType<typeof InvalidSearchQuery>
-  | ReturnType<typeof SearchNavigated>
-  | ReturnType<typeof LocationReceived>
-  | { readonly _tag: 'OpenSearch'; readonly q: string }
+const Message = defineMessageUnion({
+  SearchRouteSelected: { route: SearchRouteSchema },
+  InvalidSearchQuery: {},
+  SearchNavigated: {},
+  LocationReceived: { location: BrowserLocation },
+  OpenSearch: { q: Schema.String },
+})
+type Message = typeof Message.Type
 
 const ports = { inbound: { location: Port.inbound(BrowserLocation) } }
 const subscriptions = Subscription.make<Model, Message>()(_entry => ({
-  location: Port.subscriptionEntry(ports.inbound.location, LocationReceived),
+  location: Port.subscriptionEntry(ports.inbound.location, location =>
+    Message.LocationReceived({ location }),
+  ),
 }))
 
 const ResolveLocation = Command.define('ResolveLocation', {
   args: { pathname: Schema.String, search: Schema.String },
-  messages: [SearchRouteSelected, InvalidSearchQuery],
+  messages: [Message.SearchRouteSelected, Message.InvalidSearchQuery],
   execute: ({ pathname, search }) =>
     Effect.match(searchRoute.parse(pathname.split('/').filter(Boolean), search), {
-      onFailure: () => InvalidSearchQuery(),
+      onFailure: () => Message.InvalidSearchQuery(),
       onSuccess: ([route]) =>
-        SearchRouteSelected({ ...route, page: route.page ?? 1 }),
+        Message.SearchRouteSelected({ route: { ...route, page: route.page ?? 1 } }),
     }),
 })
 const NavigateToSearch = Command.define('NavigateToSearch', {
   args: { q: Schema.String },
-  messages: [SearchNavigated],
+  messages: [Message.SearchNavigated],
   execute: ({ q }) =>
-    Navigation.pushUrl(searchRoute.build({ q })).pipe(Effect.as(SearchNavigated())),
+    Navigation.pushUrl(searchRoute.build({ q })).pipe(Effect.as(Message.SearchNavigated())),
 })
 
 const update = (model: Model, message: Message) => {

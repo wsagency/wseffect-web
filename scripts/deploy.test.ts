@@ -5,7 +5,23 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
 import { promisify } from 'node:util'
-import { acquireLock, captureCurrentAssets, checkCheckout, cleanChildEnvironment, commitRelease, inspectArtifact, runDeployment, validateRegistryConfig, validateRegistryPins } from './deploy.ts'
+import {
+  acquireLock,
+  captureCurrentAssets,
+  checkCheckout,
+  cleanChildEnvironment,
+  commitRelease,
+  inspectArtifact,
+  normalizeCanonicalRoute,
+  normalizeGeneratedMarkdownPath,
+  parseWranglerDeploymentOutput,
+  recordSmokeResult,
+  runDeployment,
+  smokeProduction,
+  validateRegistryConfig,
+  validateRegistryPins,
+  withDeploymentLock,
+} from './deploy.ts'
 import { mergeRetainedAssets } from './retention.ts'
 import type { RetentionResult } from './retention.ts'
 
@@ -36,6 +52,7 @@ async function repository(): Promise<{ root: string; sha: string }> {
   const sha = await git(root, 'rev-parse', 'HEAD')
   const remote = `${root}-origin.git`
   temporary.push(remote)
+  await git(root, 'init', '--bare', remote)
   await git(root, 'remote', 'add', 'origin', remote)
   await git(root, 'push', '-u', 'origin', 'main')
   await git(root, 'fetch', 'origin', 'main')
@@ -83,6 +100,22 @@ test('deploy lock excludes concurrent writers and releases only its own lock', a
   await releaseAgain()
 })
 
+test('deployment lock is released after successful and failed guarded work', async () => {
+  for (const shouldFail of [false, true]) {
+    const root = await tempDir()
+    const operation = async () => {
+      assert.ok((await readFile(join(root, 'deploy.lock'), 'utf8')).includes(String(process.pid)))
+      if (shouldFail) throw new Error('guarded work failed')
+      return 'dry-run complete'
+    }
+    if (shouldFail) await assert.rejects(withDeploymentLock(root, operation), /guarded work failed/)
+    else assert.equal(await withDeploymentLock(root, operation), 'dry-run complete')
+    await assert.rejects(readFile(join(root, 'deploy.lock')), { code: 'ENOENT' })
+    const release = await acquireLock(root)
+    await release()
+  }
+})
+
 test('subprocess environment strips inherited Cloudflare credentials', () => {
   const clean = cleanChildEnvironment({
     CLOUDFLARE_API_TOKEN: 'secret-value',
@@ -127,19 +160,106 @@ test('registry configuration rejects project-level nonregistry endpoints', async
   await assert.rejects(validateRegistryConfig(root), /npm registry/i)
 })
 
-test('dry-run completes local validation without reading credentials or deploying', async () => {
+test('generated route entries normalize relative Markdown twins without allowing traversal', () => {
+  assert.equal(normalizeCanonicalRoute('/app/'), '/app/')
+  assert.equal(normalizeCanonicalRoute('/'), '/')
+  assert.equal(normalizeGeneratedMarkdownPath('app/index.md'), '/app/index.md')
+  assert.equal(normalizeGeneratedMarkdownPath('/app/index.md'), '/app/index.md')
+  assert.throws(() => normalizeGeneratedMarkdownPath('../secret.md'), /unsafe Markdown path/)
+  assert.throws(() => normalizeCanonicalRoute('/app/%2e%2e/'), /unsafe canonical route/)
+})
+
+test('Wrangler output parser captures the exact Worker version identifier', () => {
+  const versionId = 'v1-abc123'
+  const output = [
+    JSON.stringify({ type: 'wrangler-session', version: 1 }),
+    JSON.stringify({ type: 'deploy', worker_name: 'wseffect-web', version_id: versionId }),
+  ].join('\n')
+  assert.deepEqual(parseWranglerDeploymentOutput(output), { workerVersionId: versionId })
+  assert.throws(() => parseWranglerDeploymentOutput(JSON.stringify({ type: 'deploy', worker_name: 'wseffect-web', version_id: null })), /version identifier/)
+})
+
+test('production smoke checks canonical Markdown negotiation, its twin, and cache policy', async () => {
+  const expectedSha = 'a'.repeat(40)
+  const requests: { path: string; host: string; method: string; accept: string | null }[] = []
+  const fetcher: typeof fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+    const method = init.method ?? 'GET'
+    const accept = new Headers(init.headers).get('accept')
+    requests.push({ path: url.pathname, host: url.hostname, method, accept })
+    if (url.hostname === 'www.wseffect.com') return new Response(null, { status: 301, headers: { location: `https://wseffect.com${url.pathname}${url.search}` } })
+    if (url.pathname === '/version.json') return new Response(JSON.stringify({ sha: expectedSha }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-cache' } })
+    if (url.pathname === '/robots.txt') return new Response('Sitemap: https://wseffect.com/sitemap.xml', { headers: { 'cache-control': 'no-cache' } })
+    if (url.pathname === '/sitemap.xml') return new Response('<urlset><url><loc>https://wseffect.com/</loc></url></urlset>', { headers: { 'cache-control': 'no-cache' } })
+    if (url.pathname === '/_astro/app.abcdef123456.js') return new Response('bundle', { headers: { 'cache-control': 'public, max-age=31536000, immutable' } })
+    if (url.pathname === '/guide/' && accept === 'text/markdown') {
+      return new Response(method === 'HEAD' ? null : '# Guide', { headers: { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'no-cache', vary: 'Accept, Origin' } })
+    }
+    if (url.pathname === '/guide/') return new Response('<html>Guide</html>', { headers: { 'content-type': 'text/html', 'cache-control': 'no-cache' } })
+    if (url.pathname === '/guide/index.md') return new Response('# Guide', { headers: { 'content-type': 'text/markdown; charset=utf-8', 'cache-control': 'no-cache' } })
+    if (url.pathname === '/__wseffect-deploy-smoke-404__' || url.pathname === '/_astro/__wseffect-deploy-smoke-missing__.js') return new Response('not found', { status: 404 })
+    return new Response('<html>Home</html>', { headers: { 'content-type': 'text/html', 'cache-control': 'no-cache' } })
+  }
+  await smokeProduction({
+    baseUrl: 'https://wseffect.com',
+    retainedPaths: ['/_astro/app.abcdef123456.js'],
+    docsPath: '/guide/',
+    markdownPath: 'guide/index.md',
+    expectedSha,
+    fetcher,
+  })
+  assert.deepEqual(requests.filter(({ path }) => path === '/guide/').map(({ method, accept }) => [method, accept]), [
+    ['GET', null],
+    ['GET', 'text/markdown'],
+    ['HEAD', 'text/markdown'],
+  ])
+  assert.ok(requests.some(({ path, method }) => path === '/guide/index.md' && method === 'GET'))
+})
+
+test('release receipt records smoke success and failure', async () => {
+  const receiptPath = join(await tempDir(), 'a'.repeat(40) + '.receipt.json')
+  const receipt = {
+    sha: 'a'.repeat(40),
+    siteVersion: '0.1.0-rc.1',
+    workerVersionId: 'bc11a111-8a88-4d2f-8be8-d9fd6e345f57',
+    deployedAt: '2026-11-16T00:00:00.000Z',
+    smoke: { status: 'pending' as const },
+  }
+  await recordSmokeResult(receiptPath, receipt, async () => {})
+  assert.equal((JSON.parse(await readFile(receiptPath, 'utf8')) as typeof receipt).smoke.status, 'passed')
+  await assert.rejects(recordSmokeResult(receiptPath, receipt, async () => { throw new Error('smoke failed') }), /smoke failed/)
+  assert.equal((JSON.parse(await readFile(receiptPath, 'utf8')) as typeof receipt).smoke.status, 'failed')
+})
+
+test('dry-run avoids credentials and releases its lock when validation fails', async () => {
   const { root } = await repository()
+  const deploymentTmp = await tempDir()
+  const releaseStore = await tempDir()
+  const previousTmp = process.env.WSEFFECT_DEPLOY_TMP
+  const previousStore = process.env.WSEFFECT_RELEASE_STORE
+  process.env.WSEFFECT_DEPLOY_TMP = deploymentTmp
+  process.env.WSEFFECT_RELEASE_STORE = releaseStore
   let secretReads = 0
   let remoteDeploys = 0
-  await assert.rejects(runDeployment({
-    root,
-    dryRun: true,
-    readToken: async () => { secretReads++; throw new Error('must not read') },
-    deploy: async () => { remoteDeploys++ },
-  }), /package\.json|registry|lock|worktree|Astro|site/i)
+  try {
+    await assert.rejects(runDeployment({
+      root,
+      dryRun: true,
+      readToken: async () => { secretReads++; throw new Error('must not read') },
+      deploy: async () => { remoteDeploys++; return { workerVersionId: '00000000-0000-0000-0000-000000000000' } },
+    }), /ENOENT.*package\.json/i)
+  } finally {
+    if (previousTmp === undefined) delete process.env.WSEFFECT_DEPLOY_TMP
+    else process.env.WSEFFECT_DEPLOY_TMP = previousTmp
+    if (previousStore === undefined) delete process.env.WSEFFECT_RELEASE_STORE
+    else process.env.WSEFFECT_RELEASE_STORE = previousStore
+  }
   assert.equal(secretReads, 0)
   assert.equal(remoteDeploys, 0)
   assert.equal(await readFile(join(root, 'tracked.txt'), 'utf8'), 'tracked\n')
+  await assert.rejects(readFile(join(deploymentTmp, 'deploy.lock')), { code: 'ENOENT' })
+  const release = await acquireLock(deploymentTmp)
+  await release()
 })
 test('release snapshots contain only current build assets and retain exactly the prior three releases', async () => {
   const root = await tempDir()

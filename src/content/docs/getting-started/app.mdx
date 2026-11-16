@@ -10,7 +10,8 @@ The full starter combines `@wsagency/wseffect-app`, Foldkit, Themes, and Vite. D
 Using Node.js `24.21.0` and pnpm `11.5.0`:
 
 ```sh
-tar -xzf wseffect-full-0.1.0-rc.1.tgz
+mkdir -p wseffect-full
+tar -xzf wseffect-full-0.1.0-rc.1.tgz -C wseffect-full
 cd wseffect-full
 pnpm install --frozen-lockfile
 pnpm exec wseffect-codegen .

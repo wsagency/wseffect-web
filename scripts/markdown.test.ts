@@ -6,13 +6,15 @@ test('Markdown twins preserve headings, links, tables, and language-tagged code'
   const html = `<html><body><header>site header</header><main id="main-content">
     <h1>Guide title</h1><p>Read <a href="/next/">the next guide</a>.</p>
     <pre><code class="language-ts">const answer: number = 42</code></pre>
-    <table><thead><tr><th>Name</th><th>Required</th></tr></thead><tbody><tr><td>value</td><td>Yes</td></tr></tbody></table>
-    <nav>navigation chrome</nav></main><footer>footer chrome</footer></body></html>`
+    <table><thead><tr><th>Name</th><th>Required</th></tr></thead><tbody><tr><td>value</td><td>Yes <a href="/props/">options</a> <code>string</code></td></tr></tbody></table>
+    <nav><a href="/themes/">Component navigation</a></nav></main><nav>navigation chrome</nav><footer>footer chrome</footer></body></html>`
   const markdown = htmlToMarkdown(html)
   assert.match(markdown, /^# Guide title$/m)
   assert.match(markdown, /\[the next guide\]\(\/next\/\)/)
   assert.match(markdown, /```ts\nconst answer: number = 42\n```/)
-  assert.match(markdown, /Name \| Required\n--- \| ---\nvalue \| Yes/)
+  assert.ok(markdown.includes('[options](/props/)'))
+  assert.ok(markdown.includes('`string`'))
+  assert.ok(markdown.includes('[Component navigation](/themes/)'))
   assert.doesNotMatch(markdown, /site header|navigation chrome|footer chrome/)
 })
 

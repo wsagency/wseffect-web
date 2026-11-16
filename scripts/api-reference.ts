@@ -3,8 +3,10 @@ import { mkdir, readFile, realpath, stat, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { InventoryEntry } from './inventory.ts'
+import { themeExamples } from '../src/data/theme-examples.ts'
 
 const siteRoot = fileURLToPath(new URL('../', import.meta.url))
+const inventoryPath = join(siteRoot, 'src/data/export-inventory.json')
 const outputPath = join(siteRoot, 'generated/api-reference.json')
 
 type PackageManifest = Readonly<{
@@ -86,11 +88,12 @@ function docsText(node: ts.Node): string {
   return rendered.join('\n\n')
 }
 
-function declarationsAt(program: ts.Program, filePath: string, packageRoot: string): ApiDeclaration[] {
+function declarationsAt(program: ts.Program, filePath: string, publishedPackageRoots: ReadonlyArray<string>): ApiDeclaration[] {
   const source = program.getSourceFile(filePath)
-  if (!source?.symbol) throw new Error(`Cannot read declaration module ${filePath}`)
   const checker = program.getTypeChecker()
-  const exports = checker.getExportsOfModule(source.symbol)
+  const moduleSymbol = source && checker.getSymbolAtLocation(source)
+  if (!moduleSymbol) throw new Error(`Cannot read declaration module ${filePath}`)
+  const exports = checker.getExportsOfModule(moduleSymbol)
   const found = new Map<string, ApiDeclaration>()
   for (const exported of exports) {
     const name = exported.getName()
@@ -98,7 +101,7 @@ function declarationsAt(program: ts.Program, filePath: string, packageRoot: stri
     for (const declaration of symbol.getDeclarations() ?? []) {
       const declarationSource = declaration.getSourceFile()
       const declarationPath = resolve(declarationSource.fileName)
-      if (!declarationPath.startsWith(`${resolve(packageRoot)}/`) || !/\.d\.(?:ts|mts|cts)$/.test(declarationPath)) continue
+      if (!publishedPackageRoots.some((root) => declarationPath.startsWith(`${resolve(root)}/`)) || !/\.d\.(?:ts|mts|cts)$/.test(declarationPath)) continue
       const signature = declarationText(declaration)
       const key = `${name}\0${signature}`
       if (!found.has(key)) found.set(key, { name, documentation: docsText(declaration), signature })
@@ -129,6 +132,10 @@ async function packageNotices(root: string, manifest: PackageManifest): Promise<
 export async function generateApiReference(inventory?: ReadonlyArray<InventoryEntry>): Promise<ReadonlyArray<ApiReference>> {
   const entries = inventory ?? JSON.parse(await readFile(inventoryPath, 'utf8')) as InventoryEntry[]
   const apiEntries = entries.filter((entry) => entry.kind === 'api')
+  const themeComponentEntries = apiEntries.filter((entry) => entry.packageName === '@wsagency/wseffect-themes' && entry.exportPath.startsWith('./components/'))
+  const themeComponentExports = new Set(themeComponentEntries.map((entry) => entry.exportPath))
+  for (const entry of themeComponentEntries) if (!themeExamples[entry.exportPath]) throw new Error(`No rendered example for ${entry.exportPath}`)
+  for (const exportPath of Object.keys(themeExamples)) if (!themeComponentExports.has(exportPath)) throw new Error(`Example has no published Themes component export: ${exportPath}`)
   const packageData = new Map<string, { root: string; manifest: PackageManifest; targets: Map<string, string>; notices: Promise<PackageNotice[]> }>()
   for (const entry of apiEntries) {
     if (!packageData.has(entry.packageName)) {
@@ -139,18 +146,31 @@ export async function generateApiReference(inventory?: ReadonlyArray<InventoryEn
     const data = packageData.get(entry.packageName)!
     if (!data.targets.has(entry.exportPath)) data.targets.set(entry.exportPath, await declarationFile(data.root, data.manifest, entry.exportPath))
   }
-  const program = ts.createProgram([...new Set([...packageData.values()].flatMap((item) => [...item.targets.values()]))], {
+  const examplePath = join(siteRoot, 'src/data/theme-examples.ts')
+  const program = ts.createProgram([...new Set([...packageData.values()].flatMap((item) => [...item.targets.values()])), examplePath], {
     target: ts.ScriptTarget.Latest,
     module: ts.ModuleKind.NodeNext,
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
     skipLibCheck: true,
     noEmit: true,
   })
+  const exampleFile = program.getSourceFile(examplePath)
+  if (!exampleFile) throw new Error(`Could not compile component examples from ${relative(siteRoot, examplePath)}`)
+  const diagnostics = ts.getPreEmitDiagnostics(program, exampleFile)
+  if (diagnostics.length) {
+    const diagnosticHost: ts.FormatDiagnosticsHost = {
+      getCanonicalFileName: (fileName) => fileName,
+      getCurrentDirectory: () => siteRoot,
+      getNewLine: () => '\n',
+    }
+    throw new Error(`Published Themes component examples do not type-check:\n${ts.formatDiagnosticsWithColorAndContext(diagnostics, diagnosticHost)}`)
+  }
+  const publishedPackageRoots = [...new Set([...packageData.values()].map((item) => resolve(item.root)))]
   const references: ApiReference[] = []
   for (const entry of apiEntries) {
     const data = packageData.get(entry.packageName)!
     const file = data.targets.get(entry.exportPath)!
-    const declarations = declarationsAt(program, file, data.root)
+    const declarations = declarationsAt(program, file, publishedPackageRoots)
     if (!declarations.length) throw new Error(`${entry.packageName}${entry.exportPath === '.' ? '' : entry.exportPath} has no exported declarations in ${relative(data.root, file)}`)
     references.push({
       route: entry.route,
@@ -161,6 +181,7 @@ export async function generateApiReference(inventory?: ReadonlyArray<InventoryEn
       license: data.manifest.license ?? 'License not declared in package metadata',
       version: data.manifest.version,
       notices: await data.notices,
+      declarations,
     })
   }
   return references

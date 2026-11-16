@@ -117,9 +117,15 @@ export function createWorker(routes: Readonly<Record<string, string>>): WorkerFe
     const method = request.method.toUpperCase();
     const head = method === 'HEAD';
 
-    // This is a defensive mirror of the separately provisioned zone redirect.
-    if (url.hostname.toLowerCase() === 'www.wseffect.com') {
+    const hostname = url.hostname.toLowerCase();
+    const isProductionHost = hostname === 'wseffect.com' || hostname === 'www.wseffect.com';
+    const needsProductionRedirect = isProductionHost && (
+      url.protocol === 'http:' || (url.protocol === 'https:' && hostname === 'www.wseffect.com')
+    );
+    if (needsProductionRedirect) {
+      url.protocol = 'https:';
       url.hostname = 'wseffect.com';
+      url.port = '';
       return new Response(null, {
         status: 301,
         headers: { location: url.toString(), 'cache-control': NO_CACHE },

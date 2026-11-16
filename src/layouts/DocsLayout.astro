@@ -17,6 +17,7 @@ const nav = navigation.length ? navigation : [
   { href: '/foldkit-ui/', label: 'Foldkit UI' },
   { href: '/app/', label: 'Application' },
   { href: '/vite-plugin/', label: 'Vite plugin' },
+  { href: '/search/', label: 'Search' },
 ]
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, 'https://wseffect.com').toString()
 const currentPath = Astro.url.pathname
@@ -44,6 +45,7 @@ const currentPath = Astro.url.pathname
             <a href="/foldkit-ui/">Foldkit UI</a>
             <a href="/app/">Application</a>
             <a href="/vite-plugin/">Plugin</a>
+            <a href="/search/">Search</a>
           </nav>
           <a class="header-demo" href="/demos/">Interactive demos <span aria-hidden="true">↗</span></a>
         </header>

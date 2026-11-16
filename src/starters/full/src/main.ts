@@ -55,7 +55,6 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
   return {
     title: 'wseffect full starter',
     body: Theme.view({ settings: Theme.defaults, isRoot: true }, [
-      h.div([h.Id('foldkit-portal-root')], []),
       h.main([h.Class('starter-main')], [
         Heading.view({ as: 'h1', size: '5' }, ['WS Agency wseffect app starter'], h),
         ...activePages,

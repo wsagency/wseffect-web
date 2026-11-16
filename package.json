@@ -12,6 +12,7 @@
     "dev": "pnpm generate && astro dev",
     "build": "pnpm generate && astro build && node scripts/site-metadata.ts && node scripts/search.ts",
     "check": "node scripts/check.ts",
+    "deploy:site": "node scripts/deploy.ts",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -34,7 +35,7 @@
     "linkedom": "0.18.15",
     "pagefind": "1.6.0",
     "turndown": "7.2.5",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "vite": "8.3.4",
     "vite-plugin-pwa": "2.0.0",
     "wrangler": "4.149.0"

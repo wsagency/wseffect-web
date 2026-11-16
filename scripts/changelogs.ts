@@ -1,8 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname, join, resolve } from 'node:path'
 
-const siteRoot = fileURLToPath(new URL('../', import.meta.url))
 const packageNames = [
   '@wsagency/wseffect-app',
   '@wsagency/wseffect-themes',
@@ -105,7 +103,23 @@ function repositoryUrl(manifest: Manifest): string {
   return url
 }
 
+async function findSiteRoot(): Promise<string> {
+  let directory = resolve(process.cwd())
+  for (;;) {
+    try {
+      const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8')) as { name?: string }
+      if (manifest.name === 'wseffect-web') return directory
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    const parent = dirname(directory)
+    if (parent === directory) throw new Error(`Could not find the wseffect-web project root from ${process.cwd()}`)
+    directory = parent
+  }
+}
+
 export async function readInstalledChangelogs(): Promise<ReadonlyArray<PackageChangelog>> {
+  const siteRoot = await findSiteRoot()
   const changelogs: PackageChangelog[] = []
   for (const packageName of packageNames) {
     const packageRoot = resolve(siteRoot, 'node_modules', ...packageName.split('/'))

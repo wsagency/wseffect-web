@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -21,6 +22,7 @@ const WRANGLER_VERSION = '4.149.0'
 const REGISTRY_URL = 'https://registry.npmjs.org/'
 const SHA_PATTERN = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i
 const SECRET_KEYS = /^(?:CLOUDFLARE_API_TOKEN|CF_API_TOKEN|WRANGLER_API_TOKEN)$/i
+const WORKER_VERSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const TOKEN_TEXT = /(?:CLOUDFLARE_API_TOKEN|CF_API_TOKEN|WRANGLER_API_TOKEN)\s*[:=]\s*[^\s"']+|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|authorization\s*:\s*(?:bearer|basic)\s+[^\s"']+|https?:\/\/[^\s/:@]+:[^\s/@]+@/i
 
 function safeEnv(source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
@@ -211,6 +213,42 @@ export async function inspectArtifact(outDir: string, workspaceRoot: string): Pr
   }
 }
 
+export function normalizeCanonicalRoute(value: unknown): string {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.includes('\\') || value.includes('?') || value.includes('#')) {
+    throw new Error('generated/routes.json contains an invalid canonical route')
+  }
+  if (value === '/') return '/'
+  if (!value.endsWith('/')) throw new Error('generated/routes.json route must end in a slash')
+  const segments = value.slice(1, -1).split('/')
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..' || unsafeEncodedSegment(segment))) {
+    throw new Error('generated/routes.json contains an unsafe canonical route')
+  }
+  return `/${segments.join('/')}/`
+}
+
+export function normalizeGeneratedMarkdownPath(value: unknown): string {
+  if (typeof value !== 'string' || !value || value.includes('\\') || value.includes('?') || value.includes('#')) {
+    throw new Error('generated/routes.json contains an invalid Markdown path')
+  }
+  const relativePath = value.startsWith('/') ? value.slice(1) : value
+  const segments = relativePath.split('/')
+  if (segments.some((segment) => !segment || segment === '.' || segment === '..' || unsafeEncodedSegment(segment))) {
+    throw new Error('generated/routes.json contains an unsafe Markdown path')
+  }
+  return `/${segments.join('/')}`
+}
+
+function unsafeEncodedSegment(segment: string): boolean {
+  try {
+    const decoded = decodeURIComponent(segment)
+    return decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\') || decoded.includes('\0')
+  } catch {
+    return true
+  }
+}
+
+type GeneratedRoute = Readonly<{ route: string; markdownPath: string }>
+
 async function validateOutput(root: string, sha: string): Promise<{ markdownPath: string; docsPath: string; version: string }> {
   const out = join(root, 'out')
   const versionDoc = JSON.parse(await readFile(join(out, 'version.json'), 'utf8')) as { sha?: unknown; version?: unknown }
@@ -218,12 +256,14 @@ async function validateOutput(root: string, sha: string): Promise<{ markdownPath
   if (versionDoc.version !== SITE_VERSION) throw new Error('Unexpected website version in out/version.json')
   const routes = JSON.parse(await readFile(join(root, 'generated', 'routes.json'), 'utf8')) as Record<string, unknown>
   if (!routes || typeof routes !== 'object' || Array.isArray(routes) || Object.keys(routes).length === 0) throw new Error('generated/routes.json is not a non-empty route map')
-  for (const [route, markdown] of Object.entries(routes)) {
-    if (!route.startsWith('/') || typeof markdown !== 'string' || !markdown.startsWith('/') || route.includes('..') || markdown.includes('..')) {
-      throw new Error('generated/routes.json contains an invalid route entry')
-    }
-    await lstat(join(out, route.replace(/^\//, ''), 'index.html'))
-    await lstat(join(out, markdown.replace(/^\//, '')))
+  const normalizedRoutes: GeneratedRoute[] = Object.entries(routes).map(([route, markdown]) => ({
+    route: normalizeCanonicalRoute(route),
+    markdownPath: normalizeGeneratedMarkdownPath(markdown),
+  }))
+  for (const entry of normalizedRoutes) {
+    const routeFiles = entry.route === '/' ? ['index.html'] : [...entry.route.slice(1, -1).split('/'), 'index.html']
+    await lstat(join(out, ...routeFiles))
+    await lstat(join(out, ...entry.markdownPath.slice(1).split('/')))
   }
   for (const required of ['index.html', 'robots.txt', 'sitemap.xml', 'version.json']) await lstat(join(out, required))
   await lstat(join(root, 'worker', 'index.ts'))
@@ -235,9 +275,9 @@ async function validateOutput(root: string, sha: string): Promise<{ markdownPath
   }
   if ((await walkFiles(join(out, '_astro'))).length === 0) throw new Error('Built output has no deployable Astro assets')
   await inspectArtifact(out, root)
-  const docsEntry = Object.entries(routes).find(([route, markdown]) => route !== '/' && typeof markdown === 'string')
+  const docsEntry = normalizedRoutes.find(({ route }) => route !== '/')
   if (!docsEntry) throw new Error('Generated route map has no docs route to smoke-test')
-  return { docsPath: docsEntry[0], markdownPath: docsEntry[1] as string, version: String(versionDoc.version) }
+  return { docsPath: docsEntry.route, markdownPath: docsEntry.markdownPath, version: String(versionDoc.version) }
 }
 
 export interface SmokeOptions {
@@ -249,30 +289,55 @@ export interface SmokeOptions {
   readonly fetcher?: typeof fetch
 }
 
+function responseVariesOnAccept(response: Response): boolean {
+  return (response.headers.get('vary') ?? '').split(',').some((value) => value.trim().toLowerCase() === 'accept')
+}
+
+function requireNoCache(response: Response, path: string): void {
+  if (response.headers.get('cache-control') !== 'no-cache') throw new Error(`Production response at ${path} must use Cache-Control: no-cache`)
+}
+
 export async function smokeProduction(options: SmokeOptions): Promise<void> {
   const fetcher = options.fetcher ?? fetch
   const base = (options.baseUrl ?? 'https://wseffect.com').replace(/\/$/, '')
+  const docsPath = normalizeCanonicalRoute(options.docsPath)
+  const markdownPath = normalizeGeneratedMarkdownPath(options.markdownPath)
   const get = async (path: string, init?: RequestInit) => fetcher(`${base}${path}`, { redirect: 'manual', ...init })
   const root = await get('/')
   if (root.status !== 200 || !(root.headers.get('content-type') ?? '').includes('text/html')) throw new Error('Production smoke failed at /')
-  const docs = await get(options.docsPath)
-  if (docs.status !== 200 || !(docs.headers.get('content-type') ?? '').includes('text/html')) throw new Error(`Production smoke failed at ${options.docsPath}`)
+  requireNoCache(root, '/')
+  const docs = await get(docsPath)
+  if (docs.status !== 200 || !(docs.headers.get('content-type') ?? '').includes('text/html')) throw new Error(`Production smoke failed at ${docsPath}`)
+  requireNoCache(docs, docsPath)
+  const docsMarkdown = await get(docsPath, { headers: { Accept: 'text/markdown' } })
+  if (docsMarkdown.status !== 200 || !(docsMarkdown.headers.get('content-type') ?? '').includes('text/markdown')) {
+    throw new Error(`Production smoke failed at Markdown negotiation for ${docsPath}`)
+  }
+  requireNoCache(docsMarkdown, docsPath)
+  if (!responseVariesOnAccept(docsMarkdown)) throw new Error('Production canonical Markdown response does not vary on Accept')
+  const docsMarkdownHead = await get(docsPath, { method: 'HEAD', headers: { Accept: 'text/markdown' } })
+  if (docsMarkdownHead.status !== 200 || !(docsMarkdownHead.headers.get('content-type') ?? '').includes('text/markdown')) {
+    throw new Error(`Production smoke failed at canonical Markdown HEAD for ${docsPath}`)
+  }
+  requireNoCache(docsMarkdownHead, docsPath)
+  if (!responseVariesOnAccept(docsMarkdownHead)) throw new Error('Production canonical Markdown HEAD does not vary on Accept')
+  const markdownTwin = await get(markdownPath)
+  if (markdownTwin.status !== 200 || !(markdownTwin.headers.get('content-type') ?? '').includes('text/markdown')) {
+    throw new Error(`Production smoke failed at Markdown twin ${markdownPath}`)
+  }
+  requireNoCache(markdownTwin, markdownPath)
   const version = await get('/version.json')
   if (version.status !== 200 || !(version.headers.get('content-type') ?? '').includes('json')) throw new Error('Production smoke failed at /version.json')
+  requireNoCache(version, '/version.json')
   const publishedVersion = await version.json() as { sha?: unknown }
   if (publishedVersion.sha !== options.expectedSha) throw new Error('Production version SHA does not match this deployment')
-  const markdown = await get(options.markdownPath, { headers: { Accept: 'text/markdown' } })
-  if (markdown.status !== 200 || !(markdown.headers.get('content-type') ?? '').includes('text/markdown')) throw new Error('Production smoke failed at Markdown negotiation')
-  const markdownHead = await get(options.markdownPath, { method: 'HEAD', headers: { Accept: 'text/markdown' } })
-  if (markdownHead.status !== 200) throw new Error('Production smoke failed at Markdown HEAD')
-  if (!(markdown.headers.get('vary') ?? '').toLowerCase().includes('accept')) throw new Error('Production Markdown response does not vary on Accept')
-  if (!(markdownHead.headers.get('vary') ?? '').toLowerCase().includes('accept')) throw new Error('Production Markdown HEAD response does not vary on Accept')
   const unknown = await get('/__wseffect-deploy-smoke-404__')
   if (unknown.status !== 404) throw new Error('Production smoke expected unknown extensionless route to return 404')
   const missingJs = await get('/_astro/__wseffect-deploy-smoke-missing__.js')
   if (missingJs.status !== 404) throw new Error('Production smoke expected missing JavaScript asset to return 404')
   for (const path of ['/robots.txt', '/sitemap.xml']) {
     const response = await get(path)
+    requireNoCache(response, path)
     if (response.status !== 200) throw new Error(`Production smoke failed at ${path}`)
     const body = await response.text()
     const valid = path === '/robots.txt'
@@ -281,21 +346,53 @@ export async function smokeProduction(options: SmokeOptions): Promise<void> {
     if (!valid) throw new Error(`Production smoke content is invalid at ${path}`)
   }
   if (options.retainedPaths.length) {
-    const retained = await get(options.retainedPaths[0]!)
-    if (retained.status !== 200) throw new Error(`Production smoke failed at retained asset ${options.retainedPaths[0]}`)
+    const assetPath = options.retainedPaths[0]!
+    const retained = await get(assetPath)
+    if (retained.status !== 200) throw new Error(`Production smoke failed at retained asset ${assetPath}`)
+    if (retained.headers.get('cache-control') !== 'public, max-age=31536000, immutable') {
+      throw new Error(`Retained hashed asset ${assetPath} must use immutable Cache-Control`)
+    }
   }
   const redirect = await fetcher('https://www.wseffect.com/deploy-smoke-path?q=preserved', { redirect: 'manual' })
   const location = redirect.headers.get('location')
-  if (redirect.status !== 301 || !location || new URL(location).pathname !== '/deploy-smoke-path' || new URL(location).search !== '?q=preserved' || new URL(location).hostname !== 'wseffect.com') {
+  const target = location ? new URL(location) : undefined
+  if (redirect.status !== 301 || !target || target.protocol !== 'https:' || target.hostname !== 'wseffect.com' || target.pathname !== '/deploy-smoke-path' || target.search !== '?q=preserved') {
     throw new Error('Production smoke failed at www 301 path/query redirect')
   }
+}
+
+export interface WorkerDeploymentResult {
+  readonly workerVersionId: string
+}
+
+export function parseWranglerDeploymentOutput(output: string): WorkerDeploymentResult {
+  const deployEvents: Record<string, unknown>[] = []
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.trim()) continue
+    let event: unknown
+    try {
+      event = JSON.parse(line)
+    } catch {
+      throw new Error('Wrangler structured output is not valid ND-JSON')
+    }
+    if (event && typeof event === 'object' && (event as Record<string, unknown>).type === 'deploy'
+      && (event as Record<string, unknown>).worker_name === 'wseffect-web') {
+      deployEvents.push(event as Record<string, unknown>)
+    }
+  }
+  if (deployEvents.length !== 1) throw new Error('Wrangler output must contain exactly one deployment event for wseffect-web')
+  const versionId = deployEvents[0]!.version_id
+  if (typeof versionId !== 'string' || !WORKER_VERSION_ID_PATTERN.test(versionId)) {
+    throw new Error('Wrangler deployment event did not contain a valid Worker version identifier')
+  }
+  return { workerVersionId: versionId }
 }
 
 export interface DeploymentOptions {
   readonly root?: string
   readonly dryRun?: boolean
   readonly readToken?: () => Promise<string>
-  readonly deploy?: (worktree: string, sha: string, token: string, accountId: string) => Promise<void>
+  readonly deploy?: (worktree: string, sha: string, token: string, accountId: string) => Promise<WorkerDeploymentResult>
 }
 
 async function readScopedToken(): Promise<string> {
@@ -310,18 +407,65 @@ async function readScopedToken(): Promise<string> {
   }
 }
 
-async function deployWithWrangler(worktree: string, sha: string, token: string, accountId: string): Promise<void> {
+async function deployWithWrangler(
+  worktree: string,
+  sha: string,
+  token: string,
+  accountId: string,
+  outputPath: string,
+): Promise<WorkerDeploymentResult> {
   const childEnv = safeEnv()
   childEnv.CLOUDFLARE_API_TOKEN = token
   childEnv.CLOUDFLARE_ACCOUNT_ID = accountId
+  childEnv.WRANGLER_OUTPUT_FILE_PATH = outputPath
+  let outputCreated = false
   try {
+    await writeFile(outputPath, '', { mode: 0o600, flag: 'wx' })
+    outputCreated = true
     const output = await command(process.execPath, [join(worktree, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), 'deploy', '--message', sha], { cwd: worktree, env: childEnv })
     console.log(redact(output, token))
+    return parseWranglerDeploymentOutput(await readFile(outputPath, 'utf8'))
   } catch (error) {
-    throw new Error(`Wrangler deployment failed. Do not assume production state; inspect Cloudflare and follow the rollback/stop procedure in docs/RELEASING.md. ${redact((error as Error).message, token)}`)
+    throw new Error(`Wrangler deployment or version capture failed. Do not assume production state; inspect Cloudflare and follow the rollback/stop procedure in docs/RELEASING.md. ${redact((error as Error).message, token)}`)
   } finally {
     delete childEnv.CLOUDFLARE_API_TOKEN
+    if (outputCreated) await rm(outputPath, { force: true }).catch(() => undefined)
   }
+}
+
+export interface ReleaseReceipt {
+  readonly sha: string
+  readonly siteVersion: string
+  readonly workerVersionId: string
+  readonly deployedAt: string
+  readonly smoke: Readonly<{ status: 'pending' | 'passed' | 'failed'; checkedAt?: string }>
+}
+
+async function writeReleaseReceipt(path: string, receipt: ReleaseReceipt): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`
+  let temporaryCreated = false
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
+    temporaryCreated = true
+    await rename(temporaryPath, path)
+  } finally {
+    if (temporaryCreated) await rm(temporaryPath, { force: true }).catch(() => undefined)
+  }
+}
+
+export async function recordSmokeResult(
+  receiptPath: string,
+  receipt: ReleaseReceipt,
+  smoke: () => Promise<void>,
+): Promise<void> {
+  try {
+    await smoke()
+  } catch (error) {
+    await writeReleaseReceipt(receiptPath, { ...receipt, smoke: { status: 'failed', checkedAt: new Date().toISOString() } })
+    throw error
+  }
+  await writeReleaseReceipt(receiptPath, { ...receipt, smoke: { status: 'passed', checkedAt: new Date().toISOString() } })
 }
 
 const HASHED_FILENAME = /\.[A-Za-z0-9_-]{8,}\.[^/]+$/
@@ -401,6 +545,15 @@ async function validateSnapshotCompatibility(currentAstro: string, releaseStore:
   }
 }
 
+export async function withDeploymentLock<T>(directory: string, operation: () => Promise<T>): Promise<T> {
+  const releaseLock = await acquireLock(directory)
+  try {
+    return await operation()
+  } finally {
+    await releaseLock()
+  }
+}
+
 export async function runDeployment(options: DeploymentOptions = {}): Promise<void> {
   if (process.version !== `v${NODE_VERSION}`) throw new Error(`Deployment must run under Node ${NODE_VERSION}; found ${process.version}`)
   const root = await realpath(resolve(options.root ?? ROOT))
@@ -411,9 +564,11 @@ export async function runDeployment(options: DeploymentOptions = {}): Promise<vo
   if (inside(tempRoot, root) || inside(releaseStore, root) || inside(tempRoot, releaseStore) || inside(releaseStore, tempRoot)) {
     throw new Error('Deployment temp and release-store paths must be separate and outside the source repository')
   }
-  const releaseLock = await acquireLock(tempRoot)
+  return withDeploymentLock(tempRoot, async () => {
   let worktree: string | undefined
   let worktreeCreated = false
+  let snapshotAstro: string | undefined
+  let snapshotCaptured = false
   let deployed = false
   let npmConfigPath: string | undefined
   let npmConfigCreated = false
@@ -478,15 +633,23 @@ export async function runDeployment(options: DeploymentOptions = {}): Promise<vo
       if (!token || /\s/.test(token)) throw new Error('Cloudflare token lookup returned an invalid value')
       const finalSha = await checkCheckout(root)
       if (finalSha !== sha) throw new Error('origin/main changed before Wrangler deployment; refusing remote mutation')
-      await (options.deploy ?? deployWithWrangler)(worktree, sha, token, accountId!)
+      const deployment = options.deploy
+        ? await options.deploy(worktree, sha, token, accountId!)
+        : await deployWithWrangler(worktree, sha, token, accountId!, join(tempRoot, `wrangler-output-${sha}-${process.pid}.ndjson`))
       deployed = true
-      await commitRelease(snapshotAstro!, releaseStore, sha)
+      if (!WORKER_VERSION_ID_PATTERN.test(deployment.workerVersionId)) throw new Error('Wrangler deployment returned an invalid Worker version identifier')
       const receiptPath = join(releaseStore, `${sha}.receipt.json`)
-      const temporaryReceipt = `${receiptPath}.${process.pid}.tmp`
-      await writeFile(temporaryReceipt, `${JSON.stringify({ sha, version, deployedAt: new Date().toISOString() }, null, 2)}\n`, { mode: 0o600, flag: 'wx' })
-      await rename(temporaryReceipt, receiptPath)
+      const receipt: ReleaseReceipt = {
+        sha,
+        siteVersion: version,
+        workerVersionId: deployment.workerVersionId,
+        deployedAt: new Date().toISOString(),
+        smoke: { status: 'pending' },
+      }
+      await writeReleaseReceipt(receiptPath, receipt)
+      await commitRelease(snapshotAstro!, releaseStore, sha)
       try {
-        await smokeProduction({ retainedPaths, docsPath, markdownPath, expectedSha: sha })
+        await recordSmokeResult(receiptPath, receipt, () => smokeProduction({ retainedPaths, docsPath, markdownPath, expectedSha: sha }))
       } catch (error) {
         throw new Error(`Production smoke checks failed after deployment. Do not auto-rollback; inspect live state and follow the rollback/stop procedure in docs/RELEASING.md. ${(error as Error).message}`)
       }
@@ -503,8 +666,8 @@ export async function runDeployment(options: DeploymentOptions = {}): Promise<vo
     }
     if (snapshotAstro && snapshotCaptured) await rm(snapshotAstro, { recursive: true, force: true }).catch(() => undefined)
     if (npmConfigPath && npmConfigCreated) await rm(npmConfigPath, { force: true }).catch(() => undefined)
-    await releaseLock()
   }
+  })
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

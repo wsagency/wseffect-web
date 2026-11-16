@@ -1,0 +1,6 @@
+---
+import type { HTMLAttributes } from 'astro/types'
+type Props = HTMLAttributes<'pre'>
+const { class: className, ...attributes } = Astro.props
+---
+<pre {...attributes} class={className} tabindex="0"><slot /></pre>

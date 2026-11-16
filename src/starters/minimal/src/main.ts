@@ -30,7 +30,6 @@ const app = makeElement<Model, Message>({
   view: (model: Model, h: HtmlBuilder<Message>) => Theme.view(
     { settings: Theme.defaults, isRoot: true },
     [
-      h.div([h.Id('foldkit-portal-root')], []),
       h.main([h.Class('counter')], [
         Heading.view({ as: 'h1', size: '6' }, ['A Foldkit counter'], h),
         Text.view({ as: 'p', size: '3' }, ['The displayed value is application state updated by Foldkit.'], h),

@@ -116,15 +116,33 @@ test('known noncanonical routes redirect before negotiation and preserve query',
   assert.deepEqual(requested, []);
 });
 
-test('www redirect precedes negotiation and preserves path and query', async () => {
+test('redirects production HTTP hosts and HTTPS www to apex HTTPS', async () => {
+  const fetch = createWorker({ '/guide/': '/guide/index.md' });
+  const cases = [
+    ['http://wseffect.com/guide/?q=one', 'https://wseffect.com/guide/?q=one'],
+    ['http://www.wseffect.com/guide/?q=two', 'https://wseffect.com/guide/?q=two'],
+    ['https://www.wseffect.com/guide/?q=three', 'https://wseffect.com/guide/?q=three'],
+  ] as const;
+  for (const [requestUrl, location] of cases) {
+    const response = await fetch(
+      new Request(requestUrl, { headers: { accept: 'text/markdown' } }),
+      { ASSETS: { async fetch() { throw new Error('must not fetch assets'); } } },
+      { waitUntil() {} },
+    );
+    assert.equal(response.status, 301);
+    assert.equal(response.headers.get('location'), location);
+  }
+});
+
+test('keeps local HTTP requests available without redirecting', async () => {
   const fetch = createWorker({ '/guide/': '/guide/index.md' });
   const response = await fetch(
-    new Request('https://www.wseffect.com/guide/?q=one', { headers: { accept: 'text/markdown' } }),
-    { ASSETS: { async fetch() { throw new Error('must not fetch assets'); } } },
+    new Request('http://localhost:4321/guide/'),
+    { ASSETS: { async fetch() { return new Response('local-preview'); } } },
     { waitUntil() {} },
   );
-  assert.equal(response.status, 301);
-  assert.equal(response.headers.get('location'), 'https://wseffect.com/guide/?q=one');
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), 'local-preview');
 });
 
 test('unknown extensionless and missing extension-bearing paths remain 404', async () => {

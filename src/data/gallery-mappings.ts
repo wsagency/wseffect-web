@@ -1,4 +1,4 @@
-/** Manually reviewed examples from the canonical Gallery source at wseffect v0.1.0-rc.1. Build-time docs consume this mapping, never the source repository. */
+/** Gallery provenance selections and adaptation scope approved by the owner for wseffect v0.1.0-rc.1. Build-time docs consume this mapping, never the source repository. */
 export type GalleryMapping = {
   readonly id: string
   readonly sourceUrl: string
@@ -11,7 +11,7 @@ export const galleryMappings: ReadonlyArray<GalleryMapping> = [
     id: 'controls',
     sourceUrl: 'https://github.com/wsagency/wseffect/blob/v0.1.0-rc.1/apps/gallery/src/pages/textField.ts',
     demoRoute: '/demos/#controls-title',
-    description: 'TextField form example with controlled Model state and validation behavior.',
+    description: 'Upstream TextField page has an empty Model and no validation; this site adaptation reflects the typed input value in the UI and still adds no validation.',
   },
   {
     id: 'select',
@@ -35,7 +35,7 @@ export const galleryMappings: ReadonlyArray<GalleryMapping> = [
     id: 'data-table',
     sourceUrl: 'https://github.com/wsagency/wseffect/blob/v0.1.0-rc.1/apps/gallery/src/pages/dataTable.ts',
     demoRoute: '/demos/#data-table-title',
-    description: 'Virtualized data table with filtering, sorting, and keyboard navigation.',
+    description: 'Upstream Gallery source uses 10,000 rows and filtering; this site adaptation uses three rows and demonstrates filtering, sorting, and selection.',
   },
   {
     id: 'theme',

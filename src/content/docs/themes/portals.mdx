@@ -5,13 +5,10 @@ section: Themes
 order: 4
 ---
 
-Foldkit anchored UI panels share `#foldkit-portal-root` in their containing Document or ShadowRoot. Place that element as the first child of the root Theme so portaled content inherits the Theme CSS variables, appearance, and color settings. The fragment assumes the app has imported `Theme` and created its builder `h`, theme `settings`, and `appContent` view.
+Foldkit anchored UI panels share `#foldkit-portal-root` in their containing Document or ShadowRoot. A root `Theme.view({ settings, isRoot: true }, children, h)` automatically inserts this shared portal root as the first child; do not add a second one manually. Portaled content then inherits the root Theme's CSS variables, appearance, and color settings. This illustrative fragment assumes `Theme`, `settings`, `h`, and `appContent` come from the enclosing application.
 
 ```ts fragment
-Theme.view({ settings, isRoot: true }, [
-  h.div([h.Id('foldkit-portal-root')], []),
-  appContent,
-], h)
+Theme.view({ settings, isRoot: true }, [appContent], h)
 ```
 
 A nested Theme can override the shared root's portal settings only while the panel is visible. `DropdownMenu` is a namespace: import it from `@wsagency/wseffect-themes` and call `DropdownMenu.create<Item>()` to obtain a bundle, then use that bundle's `embed`. The following is an illustrative fragment; `h`, `settings`, `menuModel`, `menuInputs`, and the parent Message mapping come from the enclosing app.

@@ -10,7 +10,8 @@ The minimal starter demonstrates a direct Foldkit Runtime app, without the app p
 With Node.js `24.21.0` and pnpm `11.5.0`:
 
 ```sh
-tar -xzf wseffect-minimal-0.1.0-rc.1.tgz
+mkdir -p wseffect-minimal
+tar -xzf wseffect-minimal-0.1.0-rc.1.tgz -C wseffect-minimal
 cd wseffect-minimal
 pnpm install --frozen-lockfile
 pnpm dev

@@ -1,7 +1,10 @@
 ---
-import { getCollection, render } from 'astro:content'
+import { getCollection, getEntry, render } from 'astro:content'
 import DocsLayout from '../layouts/DocsLayout.astro'
+import FocusablePre from '../components/FocusablePre.astro'
 import PropsTable from '../components/PropsTable.astro'
+import { renderStatic } from '../lib/render-static'
+import { themeExamples } from '../data/theme-examples'
 import type { ApiReference } from '../../scripts/api-reference'
 import { readInstalledChangelogs } from '../../scripts/changelogs'
 import type { PropsByExport } from '../../scripts/props'
@@ -9,47 +12,51 @@ import type { InventoryEntry } from '../../scripts/inventory'
 import inventory from '../data/export-inventory.json'
 import propsByExportJson from '../../generated/props.json' with { type: 'json' }
 import apiReferencesJson from '../../generated/api-reference.json' with { type: 'json' }
-
-const exportInventory = inventory as readonly InventoryEntry[]
-const propsByExport = propsByExportJson as PropsByExport
-const docs = await getCollection('docs')
-const contentByRoute = new Map(docs.map((entry) => {
-  const path = entry.id.replace(/(?:^|\/)index(?:\.mdx)?$/, '').replace(/\.mdx$/, '')
-  return [path ? `/${path}/` : '/', entry] as const
-}))
-const references = apiReferencesJson as readonly ApiReference[]
-const referencesByRoute = new Map<string, ApiReference[]>()
-for (const reference of references) {
-  const group = referencesByRoute.get(reference.route) ?? []
-  group.push(reference)
-  referencesByRoute.set(reference.route, group)
-}
-const styleEntries = exportInventory.filter((entry) => entry.kind === 'style')
-const stylesByRoute = new Map<string, typeof styleEntries>()
-for (const style of styleEntries) {
-  stylesByRoute.set(style.route, [...(stylesByRoute.get(style.route) ?? []), style])
-}
-const packageChangelogs = await readInstalledChangelogs()
-const componentIndexRoute = '/themes/components/'
-const componentRoutes = [...new Map(references
-  .filter((reference) => reference.packageName === '@wsagency/wseffect-themes' && reference.exportPath.startsWith('./components/'))
-  .map((reference) => [`${reference.route}#${reference.anchor ?? ''}`, reference] as const)).values()]
-const routes = new Set([...contentByRoute.keys(), ...referencesByRoute.keys(), ...stylesByRoute.keys(), componentIndexRoute])
-const wildcardStyleExamples: Readonly<Record<string, string>> = {
-  './*.layer.css': './styles.layer.css',
-  './styles/*': './styles/tokens.css',
-  './tokens/colors/*': './tokens/colors/blue.css',
-  './layout/*': './layout/tokens.css',
-  './css/*': './css/button.css',
-}
-function styleImportSpecifier(style: InventoryEntry): string {
-  const path = style.exportPath.includes('*') ? wildcardStyleExamples[style.exportPath] : style.exportPath
-  if (!path) throw new Error(`Missing concrete stylesheet example for ${style.exportPath}`)
-  return `${style.packageName}${path.slice(1)}`
-}
-const pathToSlug = (route: string) => route === '/' ? undefined : route.replace(/^\//, '').replace(/\/$/, '')
+const themeComponentExports = new Set((inventory as readonly InventoryEntry[]).filter((entry) => entry.kind === 'api' && entry.packageName === '@wsagency/wseffect-themes' && entry.exportPath.startsWith('./components/')).map((entry) => entry.exportPath))
+for (const exportPath of themeComponentExports) if (!themeExamples[exportPath]) throw new Error(`No rendered example for ${exportPath}`)
+for (const exportPath of Object.keys(themeExamples)) if (!themeComponentExports.has(exportPath)) throw new Error(`Example has no published Themes component export: ${exportPath}`)
 
 export async function getStaticPaths() {
+  const exportInventory = inventory as readonly InventoryEntry[]
+  const propsByExport = propsByExportJson as PropsByExport
+  const docs = await getCollection('docs')
+  const contentByRoute = new Map(docs.map((entry) => {
+    const path = entry.id.replace(/(?:^|\/)index(?:\.mdx)?$/, '').replace(/\.mdx$/, '')
+    return [path ? `/${path}/` : '/', entry] as const
+  }))
+  const references = apiReferencesJson as readonly ApiReference[]
+  const referencesByRoute = new Map<string, ApiReference[]>()
+  for (const reference of references) {
+    const group = referencesByRoute.get(reference.route) ?? []
+    group.push(reference)
+    referencesByRoute.set(reference.route, group)
+  }
+  const styleEntries = exportInventory.filter((entry) => entry.kind === 'style')
+  const stylesByRoute = new Map<string, InventoryEntry[]>()
+  for (const style of styleEntries) {
+    stylesByRoute.set(style.route, [...(stylesByRoute.get(style.route) ?? []), style])
+  }
+  const packageChangelogs = await readInstalledChangelogs()
+  const componentIndexRoute = '/themes/components/'
+  const componentRoutes = [...new Map(references
+    .filter((reference) => reference.packageName === '@wsagency/wseffect-themes' && reference.exportPath.startsWith('./components/'))
+    .map((reference) => [`${reference.route}#${reference.anchor ?? ''}`, reference] as const)).values()]
+  const routes = new Set([...contentByRoute.keys(), ...referencesByRoute.keys(), ...stylesByRoute.keys(), componentIndexRoute])
+  const wildcardStyleExamples: Readonly<Record<string, string>> = {
+    './*.layer.css': './styles.layer.css',
+    './styles/*': './styles/tokens.css',
+    './tokens/colors/*': './tokens/colors/blue.css',
+    './layout/*': './layout/tokens.css',
+    './css/*': './css/button.css',
+  }
+  const styleImportSpecifier = (style: InventoryEntry): string => {
+    const path = style.exportPath.includes('*') ? wildcardStyleExamples[style.exportPath] : style.exportPath
+    if (!path) throw new Error(`Missing concrete stylesheet example for ${style.exportPath}`)
+    return `${style.packageName}${path.slice(1)}`
+  }
+  const rootReferences = new Map(references
+    .filter((reference) => reference.exportPath === '.')
+    .map((reference) => [reference.packageName, reference] as const))
   const paths = []
   for (const route of routes) {
     if (route === '/') continue
@@ -66,14 +73,39 @@ export async function getStaticPaths() {
       : generated.length
         ? `Published ${packageLabel} API declarations for ${exportLabels.join(', ') || 'the package entry point'}.`
         : 'Published Themes stylesheet exports, import paths, source files, and package notices.')
-    paths.push({ params: { slug: pathToSlug(route) }, props: { route, title, description, hasDocs: Boolean(authored), hasApi: generated.length > 0, isComponentIndex } })
+    const apiReferences = generated.map((reference) => ({
+      ...reference,
+      propSchemas: reference.packageName === '@wsagency/wseffect-themes' ? propsByExport[reference.exportPath] ?? [] : [],
+    }))
+    const styles = (stylesByRoute.get(route) ?? []).map((style) => {
+      const packageReference = rootReferences.get(style.packageName)
+      return {
+        ...style,
+        importSpecifier: styleImportSpecifier(style),
+        license: packageReference?.license,
+        notices: packageReference?.notices ?? [],
+      }
+    })
+    paths.push({
+      params: { slug: route.slice(1, -1) },
+      props: {
+        route,
+        title,
+        description,
+        authoredId: authored?.id,
+        apiReferences,
+        styles,
+        componentRoutes: isComponentIndex ? componentRoutes : [],
+        packageChangelogs: route === '/changelog/' ? packageChangelogs : [],
+        isComponentIndex,
+      },
+    })
   }
   return paths
 }
 
-const { route, title, description } = Astro.props
-const authored = contentByRoute.get(route)
-const apiReferences = referencesByRoute.get(route) ?? []
+const { route, title, description, authoredId, apiReferences, styles, componentRoutes, packageChangelogs, isComponentIndex } = Astro.props
+const authored = authoredId ? await getEntry('docs', authoredId) : undefined
 const docsContent = authored ? await render(authored) : undefined
 const apiNavigation = apiReferences.filter((reference) => reference.anchor).map((reference) => ({ href: `${route}#${reference.anchor}`, label: reference.exportPath }))
 const navigation = [
@@ -92,9 +124,9 @@ const navigation = [
     <p class="eyebrow">{authored.data.section}{authored.data.experimental && ' · Experimental'}</p>
     <h1>{authored.data.title}</h1>
     <p class="lede">{authored.data.description}</p>
-    {docsContent && <docsContent.Content />}
+    {docsContent && <docsContent.Content components={{ pre: FocusablePre }} />}
   </>}
-  {route === componentIndexRoute && <>
+  {isComponentIndex && <>
     {!authored
       ? <><p class="eyebrow">Themes · Component catalog</p><h1>{title}</h1><p class="lede">{description}</p></>
       : <h2>All published components</h2>}
@@ -122,36 +154,48 @@ const navigation = [
     </>}
     {apiReferences.map((reference) => {
       const modulePath = reference.exportPath === '.' ? reference.packageName : `${reference.packageName}${reference.exportPath.slice(1)}`
-      const propSchemas = reference.packageName === '@wsagency/wseffect-themes' ? propsByExport[reference.exportPath] ?? [] : []
+      const propSchemas = reference.propSchemas
+      const themeExample = reference.packageName === '@wsagency/wseffect-themes' ? themeExamples[reference.exportPath] : undefined
       return <section id={reference.anchor} class="api-reference">
         <h2>{reference.exportPath === '.' ? 'Package entry point' : reference.exportPath}</h2>
         <p><code>{reference.packageName}</code> · {reference.license} · <a href={reference.sourceUrl}>source</a>{reference.notices.map((notice) => <> · <a href={notice.url}>{notice.label}</a></>)}</p>
         <p>This entry point is published in <code>{reference.packageName}@{reference.version}</code>. Import it from the package subpath shown below; the signatures and documentation are read from the installed package declarations.</p>
-        <pre><code class="language-ts">{`import * as Wseffect from '${modulePath}'`}</code></pre>
+        <FocusablePre><code class="language-ts">{`import * as Wseffect from '${modulePath}'`}</code></FocusablePre>
         <h3>Exported declarations</h3>
         {reference.declarations.map((declaration) => <article class="api-declaration">
           <h4><code>{declaration.name}</code></h4>
           {declaration.documentation && <p>{declaration.documentation}</p>}
-          <pre><code class="language-ts">{declaration.signature}</code></pre>
+          <FocusablePre><code class="language-ts">{declaration.signature}</code></FocusablePre>
         </article>)}
         {propSchemas.map((schema) => <section class="api-props">
           <h3>{schema.schemaName}</h3>
           <PropsTable rows={schema.rows} sourceExport={`${reference.packageName}${reference.exportPath === '.' ? '' : reference.exportPath.slice(1)} · ${schema.schemaName}`} sourceUrl={reference.sourceUrl} />
         </section>)}
+        {themeExample && <>
+          <h3>Rendered component example</h3>
+          <figure class="static-example">
+            <figcaption>{themeExample.label}</figcaption>
+            <div class="static-example__preview" set:html={renderStatic(themeExample.view)} />
+          </figure>
+          <details>
+            <summary>Example usage</summary>
+            <FocusablePre><code class="language-ts">{themeExample.source}</code></FocusablePre>
+          </details>
+        </>}
       </section>
     })}
   </>}
-  {!authored && apiReferences.length === 0 && (stylesByRoute.get(route)?.length ?? 0) > 0 && <>
+  {!authored && apiReferences.length === 0 && styles.length > 0 && <>
     <p class="eyebrow">Published stylesheet exports</p>
     <h1>{title}</h1>
     <p class="lede">{description}</p>
   </>}
-  {stylesByRoute.get(route)?.map((style) => <section id={style.anchor} class="api-reference style-reference">
+  {styles.map((style) => <section id={style.anchor} class="api-reference style-reference">
     <h3><code>{style.exportPath}</code></h3>
-    <p><code>{style.packageName}</code> · CSS export · <a href={style.sourceUrl}>source</a> · {references.find((reference) => reference.packageName === style.packageName && reference.exportPath === '.')?.license}
-      {references.find((reference) => reference.packageName === style.packageName && reference.exportPath === '.')?.notices.map((notice) => <> · <a href={notice.url}>{notice.label}</a></>)}
+    <p><code>{style.packageName}</code> · CSS export · <a href={style.sourceUrl}>source</a> · {style.license}
+      {style.notices.map((notice) => <> · <a href={notice.url}>{notice.label}</a></>)}
     </p>
     {style.exportPath.includes('*') && <p>This is a published stylesheet export pattern; the import below shows one concrete matching stylesheet.</p>}
-    <pre><code class="language-ts">{`import '${styleImportSpecifier(style)}'`}</code></pre>
+    <FocusablePre><code class="language-ts">{`import '${style.importSpecifier}'`}</code></FocusablePre>
   </section>)}
 </DocsLayout>
