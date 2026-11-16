@@ -1,0 +1,24 @@
+---
+title: Explicit Island
+description: Mount trusted server HTML and apply constrained, reported DOM patches.
+section: App
+order: 14
+---
+
+`Island` is an explicit exception to Foldkit DOM ownership for trusted server-rendered HTML. Never pass user-controlled raw HTML. The `html` value initializes at mount; remount with a new ID/key for different initial markup. Patches are constrained to descendants of the island root; rejected patches do not mutate the document, and morph failure rolls back, including active control state.
+
+```ts fragment
+import { Stream } from 'effect'
+import { Island } from '@wsagency/wseffect-app'
+const patches = Stream.make({
+  _tag: 'InnerHtml' as const,
+  selector: '#balance',
+  html: '<strong>Updated by server</strong>',
+})
+const island = Island({
+  id: 'account-summary', html: trustedServerHtml, patches,
+  toMessage: (result) => ({ _tag: 'IslandFinished' as const, result }),
+}, h)
+```
+
+`trustedServerHtml` and `h` above are contextual values supplied by the host app; use the published declarations for exact builder/result types.

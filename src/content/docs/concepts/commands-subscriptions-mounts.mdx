@@ -1,0 +1,10 @@
+---
+title: Commands, Subscriptions, and Mounts
+description: Choose the lifecycle boundary for one-shot, ongoing, and element-bound work.
+section: Concepts
+order: 4
+---
+
+A Command requests one-shot work in response to a transition. A Subscription describes ongoing inputs and is interrupted with its owning runtime scope. A Mount action is tied to an element's lifecycle: it begins when that element mounts and must release listeners, observers, or pending work when it unmounts.
+
+Choose the narrowest lifetime that matches the behavior. Do not create subscriptions from view evaluation; render descriptions, then let the runtime own their lifetime. For app helpers see [signals](/app/signals/), [clipboard](/app/clipboard/), [scroll](/app/scroll/), and [ResizeObserver](/app/resize-observer/).

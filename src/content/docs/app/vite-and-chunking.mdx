@@ -1,0 +1,10 @@
+---
+title: Vite and chunking
+description: Configure app Vite integration and understand lazy/shared chunk output.
+section: App
+order: 3
+---
+
+Configure the app Vite integration with `wseffect({ primaryPages, pwa })`. `primaryPages` names pages that must be precached for offline use. App-source modules shared between the entry and lazy pages are isolated into `app-shared-*` assets; generated shared assets are precached with the entry.
+
+Build identity is required: the plugin uses the Git commit when available, or accepts `WSEFFECT_BUILD_ID` as a stable 7–64 lowercase hexadecimal source identifier. It fails when it cannot derive or receive an ID; do not invent a random fallback. See the [full starter Vite config](/getting-started/app/) for an executable project path.

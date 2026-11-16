@@ -1,0 +1,22 @@
+---
+title: Getting started
+description: Install the coordinated wseffect packages and choose a minimal or full-app path.
+section: Getting started
+order: 1
+---
+
+wseffect is an Effect-based TypeScript toolkit for browser applications. The core uses a Model, Message, update function, and view; optional packages add accessible components, a design system, and an application foundation. These instructions describe the published `0.1.0-rc.1` release. The `next` dist-tag is also intended to resolve to this release. **The `latest` tag currently follows the RC**, so an unqualified install is still a prerelease; use an explicit version when reproducibility matters.
+
+Use Node.js 24.21.0 and pnpm 11.5.0 for the downloadable starters. For the complete application stack install the packages and required peers:
+
+```sh
+pnpm add @wsagency/wseffect-app@0.1.0-rc.1 @wsagency/wseffect-themes@0.1.0-rc.1 @wsagency/wseffect-foldkit@0.1.0-rc.1 @wsagency/wseffect-foldkit-ui@0.1.0-rc.1 @wsagency/wseffect-vite-plugin@0.1.0-rc.1 effect@^4.0.5 @effect/platform-browser@^4.0.5 vite@8.3.4 vite-plugin-pwa@2.0.0
+```
+
+`pnpm add @wsagency/wseffect-*@next` is **not** a valid shell wildcard for scoped package installation. To use the `next` tag, name packages explicitly: `pnpm add @wsagency/wseffect-app@next @wsagency/wseffect-themes@next @wsagency/wseffect-foldkit@next @wsagency/wseffect-foldkit-ui@next @wsagency/wseffect-vite-plugin@next effect@^4.0.5 @effect/platform-browser@^4.0.5 vite@8.3.4 vite-plugin-pwa@2.0.0`.
+
+- [Minimal direct Foldkit app](/getting-started/minimal/): learn the runtime with one small module.
+- [Build an application](/getting-started/app/): use the app foundation, generated routes, and code splitting.
+- [Deploy](/getting-started/deploy/): preserve old lazy chunks and define deployment identifiers and caching.
+
+See [interactive demos](/demos/) for live behavior; prose docs remain static.

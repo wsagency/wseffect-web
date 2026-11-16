@@ -1,0 +1,20 @@
+---
+title: Typed signals
+description: Receive schema-validated signal patches through a lifecycle-owned Subscription.
+section: App
+order: 6
+---
+
+`signalSubscription` returns a Foldkit Subscription. It owns transport, reconnect behavior, offline pause/resume, and cleanup when interrupted. Decode outcomes distinguish accepted patches, rejected patches, and transport failures; forward them into your own Message union.
+
+```ts compile
+import { Schema } from 'effect'
+import { signalSubscription, type SignalTransport } from '@wsagency/wseffect-app'
+const signals = signalSubscription({
+  schema: Schema.Struct({ online: Schema.Boolean }),
+  transport: { _tag: 'EventSource', url: '/signals' } satisfies SignalTransport,
+  toMessage: (outcome) => ({ _tag: 'SignalsReceived' as const, outcome }),
+})
+```
+
+The supported protocol is the Datastar JSON-only `patch-signals` subset (`datastar-patch-signals`, `data: signals <JSON object>`, optional `data: onlyIfMissing true|false`); no HTML patches, expressions, script execution, or Pro support. Native EventSource observes only `datastar-patch-signals` and default `message`; use Fetch when complete rejection reporting is required. Both ignore SSE `id` and `retry` and use configured `SignalBackoff`.

@@ -1,0 +1,18 @@
+---
+title: Scroll into view command
+description: Scroll to a named DOM element and report missing-target or DOM failures.
+section: App
+order: 12
+---
+
+`scrollIntoViewCommand` uses native `Element.scrollIntoView` options and reports missing elements or DOM exceptions as failure results. The caller selects both the timing and behavior.
+
+```ts compile
+import { scrollIntoViewCommand } from '@wsagency/wseffect-app'
+const revealResults = scrollIntoViewCommand('results',
+  { behavior: 'smooth', block: 'start' },
+  (result) => ({ _tag: 'ScrollFinished' as const, result }),
+)
+```
+
+Dispatch the returned Command in response to an intentional user/application transition, not during view evaluation.

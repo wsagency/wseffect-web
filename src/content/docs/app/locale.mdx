@@ -1,0 +1,18 @@
+---
+title: Locale formatting
+description: Format numbers, dates, relative times, and plurals using an explicit locale service.
+section: App
+order: 10
+---
+
+Create a layer with `LocaleService.layer(locale)` and provide it with app resources, then access the service in an Effect. `makeLocale(locale)` is also available when a service is not needed. Number, date-time, relative-time, and plural formatters are cached in a bounded 64-entry LRU. Use a new layer/service when the locale changes.
+
+```ts compile
+import { Effect } from 'effect'
+import { LocaleService } from '@wsagency/wseffect-app'
+const formatAmount = (amount: number) =>
+  Effect.map(Effect.service(LocaleService), (locale) => locale.number(amount))
+const localeLayer = LocaleService.layer('en-US')
+```
+
+This formatting result is presentation derived from Model data; keep the underlying numeric/date value typed and locale-independent.

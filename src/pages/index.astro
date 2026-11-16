@@ -1,0 +1,30 @@
+---
+import DocsLayout from '../layouts/DocsLayout.astro'
+---
+<DocsLayout title="Effect-native interfaces" description="wseffect is a typed UI toolkit for building web interfaces with Effect and Foldkit.">
+  <p class="eyebrow">A typed UI toolkit for Effect</p>
+  <h1>Interfaces that stay true to your model.</h1>
+  <p class="lede">wseffect brings the Elm architecture to Effect: explicit models, typed messages, pure updates, and accessible components you can compose from a single source of truth.</p>
+  <div class="hero-actions">
+    <a class="button-link primary" href="/getting-started/">Start building <span aria-hidden="true">→</span></a>
+    <a class="button-link" href="/demos/">Explore interactive demos</a>
+  </div>
+  <div class="callout"><p><strong>Static-first by design.</strong> Use Astro or any host for content; render examples at build time and opt into runtime only for the interfaces that need it.</p></div>
+  <h2>One architecture, from control to application</h2>
+  <p>Build small controls with Foldkit, compose complete experiences with Themes and Foldkit UI, then add routing, persistence, offline support, and code generation as your application grows.</p>
+  <div class="card-grid">
+    <article class="info-card"><h3>Get started</h3><p>Install published packages and choose a minimal or full starter.</p><a href="/getting-started/">Getting Started →</a><br /><a href="/getting-started/minimal/">Minimal starter</a> · <a href="/getting-started/app/">Full application</a></article>
+    <article class="info-card"><h3>Design and components</h3><p>Explore the accessible component system and its design tokens.</p><a href="/themes/">Themes →</a><br /><a href="/foldkit-ui/">Foldkit UI</a></article>
+    <article class="info-card"><h3>Application foundation</h3><p>Routing, pages, build integration, and offline application capabilities.</p><a href="/app/">wseffect-app →</a><br /><a href="/vite-plugin/">Vite plugin</a></article>
+    <article class="info-card"><h3>See the runtime</h3><p>Real Foldkit programs power the select, dialog, tabs, table, and theme demos.</p><a href="/demos/">Open the demo gallery →</a></article>
+  </div>
+  <h2>Built around explicit state</h2>
+  <pre><code class="language-ts">type Model = { count: number }
+type Message = { _tag: 'Increment' } | { _tag: 'Decrement' }
+
+const update = (model: Model, message: Message) =&gt;
+  message._tag === 'Increment'
+    ? { model: { ...model, count: model.count + 1 } }
+    : { model: { ...model, count: model.count - 1 } }</code></pre>
+  <p>Updates are ordinary typed transitions; commands and subscriptions make effects explicit. Read the <a href="/concepts/model-message-update-view/">Model–Message–Update–View guide</a> or browse the <a href="https://github.com/wsagency/wseffect">source on GitHub</a>.</p>
+</DocsLayout>

@@ -1,0 +1,77 @@
+---
+import '../styles/global.css'
+import { renderThemeShell } from '../lib/render-static'
+import * as Theme from '@wsagency/wseffect-themes/components/theme'
+
+interface Props {
+  title: string
+  description: string
+  canonical?: string
+  navigation?: readonly { href: string; label: string }[]
+}
+const { title, description, canonical, navigation = [] } = Astro.props
+const shell = renderThemeShell({ appearance: 'light', accentColor: 'blue', grayColor: 'slate', radius: 'medium', scaling: '100%' } satisfies Partial<Theme.Settings>)
+const nav = navigation.length ? navigation : [
+  { href: '/getting-started/', label: 'Getting started' },
+  { href: '/themes/', label: 'Themes' },
+  { href: '/foldkit-ui/', label: 'Foldkit UI' },
+  { href: '/app/', label: 'Application' },
+  { href: '/vite-plugin/', label: 'Vite plugin' },
+]
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, 'https://wseffect.com').toString()
+const currentPath = Astro.url.pathname
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="theme-color" content="#f4f6f8" />
+    <title>{title} · wseffect</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <Fragment set:html={shell.before} />
+      <div class="site-frame">
+        <header class="site-header">
+          <a class="brand" href="/" aria-label="wseffect home">wseffect</a>
+          <p class="header-caption">Effect-native UI toolkit</p>
+          <nav class="top-navigation" aria-label="Top navigation">
+            <a href="/getting-started/">Getting started</a>
+            <a href="/themes/">Themes</a>
+            <a href="/foldkit-ui/">Foldkit UI</a>
+            <a href="/app/">Application</a>
+            <a href="/vite-plugin/">Plugin</a>
+          </nav>
+          <a class="header-demo" href="/demos/">Interactive demos <span aria-hidden="true">↗</span></a>
+        </header>
+        <details class="mobile-navigation">
+          <summary>Documentation navigation</summary>
+          <nav aria-label="Documentation">
+            {nav.map((item) => <a href={item.href} aria-current={currentPath === item.href ? 'page' : undefined}>{item.label}</a>)}
+            <a href="/demos/">Interactive demos</a>
+          </nav>
+        </details>
+        <div class="page-grid">
+          <aside class="sidebar" aria-label="Documentation sidebar">
+            <p class="sidebar-label">Documentation</p>
+            <nav aria-label="Main navigation">
+              {nav.map((item) => <a class="sidebar-link" href={item.href} aria-current={currentPath === item.href ? 'page' : undefined}>{item.label}</a>)}
+              <a class="sidebar-link" href="/demos/" aria-current={currentPath === '/demos/' ? 'page' : undefined}>Interactive demos</a>
+            </nav>
+            <div class="sidebar-note"><span class="status-dot"></span>Version 0.1.0-rc.1</div>
+          </aside>
+          <main id="main-content" class="content-column" data-pagefind-body>
+            <slot />
+          </main>
+        </div>
+        <footer class="site-footer">
+          <div><a href="/license-and-notices/">License & notices</a><a href="https://github.com/wsagency/wseffect">GitHub</a><a href="https://github.com/wsagency/wseffect-web">Website source</a></div>
+          <p>Built with <a href="https://github.com/wsagency/wseffect">wseffect</a> · Maintained by <a href="https://wsagency.com">WS Agency</a></p>
+        </footer>
+      </div>
+    <Fragment set:html={shell.after} />
+  </body>
+</html>

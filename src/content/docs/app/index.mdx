@@ -1,0 +1,12 @@
+---
+title: Application foundation
+description: Add generated lazy pages, version polling, PWA integration, and browser helpers.
+section: App
+order: 1
+---
+
+`@wsagency/wseffect-app` layers page loading, subscriptions, version polling, and optional service-worker support over Foldkit. It requires the coordinated Themes, Foldkit, Foldkit UI and Vite plugin packages, Effect `^4.0.5`, `@effect/platform-browser` `^4.0.5`, Vite `8.3.4`, and `vite-plugin-pwa` `2.0.0`. See [the full install command](/getting-started/).
+
+Generate the lazy page registry with `wseffect-codegen .`; CI/local freshness check is `wseffect-codegen --check .`. Configure Vite with `wseffect({ primaryPages, pwa })`; `pwa: false` disables service-worker installation but preserves online behavior and version polling. The helpers are named exports from `@wsagency/wseffect-app`; they report outcomes as typed messages for your Model.
+
+Guides: [pages and codegen](/app/pages-and-codegen/), [Vite and chunking](/app/vite-and-chunking/), [PWA/offline](/app/pwa-and-offline/), [deployment contract](/app/deployment-contract/).

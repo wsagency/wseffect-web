@@ -1,0 +1,14 @@
+---
+title: Themes CSS
+description: Import either the complete stylesheet or a deliberate granular subset.
+section: Themes
+order: 2
+---
+
+The `styles.css` entry is the complete stylesheet: tokens, foundations, utilities, layout, and component rules. Import it once; do not combine it with the overlapping `components.css` aggregate. To minimize CSS, import the specific token and component styles required by your app. For a TextField, the package documents base/gray/blue tokens plus `css/common.css`, `css/flex.css`, `css/text.css`, `css/text-field.css`, and `utilities.css`.
+
+```ts compile
+import '@wsagency/wseffect-themes/styles.css'
+```
+
+Theme settings select appearance and colors but do not automatically import CSS. Include palette tokens corresponding to those settings when using granular imports. See [responsive utilities](/themes/responsive/).

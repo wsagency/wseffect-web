@@ -1,0 +1,11 @@
+---
+title: SSR and hydration (experimental)
+description: Understand current experimental server rendering and hydration boundaries.
+section: Concepts
+order: 9
+experimental: true
+---
+
+**Experimental:** server rendering and hydration APIs may change and should not be treated as a stable production contract. The published Foldkit `experimental/server` surface can render a view to a string; server output is not equivalent to a complete request-scoped application framework.
+
+Do not assume browser-only APIs, event handlers, or runtime resources execute on the server. Keep server data handling explicit, escape/validate untrusted values, and verify the current package declaration before relying on any experimental entry point. See [the generated experimental server reference](/foldkit/experimental/#server).

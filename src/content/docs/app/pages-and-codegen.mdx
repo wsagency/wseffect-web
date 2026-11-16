@@ -1,0 +1,15 @@
+---
+title: Pages and code generation
+description: Generate typed lazy page registration from source modules.
+section: App
+order: 2
+---
+
+Each page is a lazy module under `src/pages/`. Give page keys that match `^[a-z][A-Za-z0-9]*$`, and place `{"sideEffects":false}` in `src/pages/package.json` so page modules can be safely split. The generator emits `src/pages.gen.ts` from the page files.
+
+```sh
+pnpm exec wseffect-codegen .
+pnpm exec wseffect-codegen --check .
+```
+
+Run generation after adding, removing, or renaming pages. The check command fails on stale generated output; commit the generated file with the page source. Generated code imports the app's `/runtime` boot-runtime entry; application code should use the package root API. Avoid editing generated registrations by hand.

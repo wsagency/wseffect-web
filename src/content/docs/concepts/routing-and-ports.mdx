@@ -1,0 +1,90 @@
+---
+title: Routing and Ports
+description: Parse routes into typed state and isolate browser navigation effects.
+section: Concepts
+order: 7
+---
+
+Foldkit route parsers pair URL matching with URL building. Parse path segments and query text into tagged, typed route values; handle parse failures explicitly rather than casting URL strings into state. Use `Navigation.pushUrl` for a new history entry and `replaceUrl` for an in-place edit. Both return Effects, so put navigation in a Command triggered by an application Message—not in `view`.
+
+```ts compile
+import { Effect, pipe, Schema } from 'effect'
+import { Command, Navigation, Port, Route, Subscription } from '@wsagency/wseffect-foldkit'
+
+const SearchQuery = Schema.Struct({
+  q: Schema.String,
+  page: Schema.optional(Schema.FiniteFromString),
+})
+const Search = {
+  make: (query: typeof SearchQuery.Type) => ({ _tag: 'Search' as const, ...query }),
+}
+const searchRoute = pipe(
+  Route.literal('search'),
+  Route.query(SearchQuery),
+  Route.mapTo(Search),
+)
+type SearchRouteState = { readonly _tag: 'Search' } & typeof SearchQuery.Type
+type Model = { readonly route: SearchRouteState | undefined; readonly invalidLocation: boolean }
+
+const BrowserLocation = Schema.Struct({
+  pathname: Schema.String,
+  search: Schema.String,
+})
+const SearchRouteSelected = (route: SearchRouteState) => ({ _tag: 'SearchRouteSelected' as const, route })
+const InvalidSearchQuery = () => ({ _tag: 'InvalidSearchQuery' as const })
+const SearchNavigated = () => ({ _tag: 'SearchNavigated' as const })
+const LocationReceived = (location: typeof BrowserLocation.Type) => ({
+  _tag: 'LocationReceived' as const,
+  location,
+})
+type Message =
+  | ReturnType<typeof SearchRouteSelected>
+  | ReturnType<typeof InvalidSearchQuery>
+  | ReturnType<typeof SearchNavigated>
+  | ReturnType<typeof LocationReceived>
+  | { readonly _tag: 'OpenSearch'; readonly q: string }
+
+const ports = { inbound: { location: Port.inbound(BrowserLocation) } }
+const subscriptions = Subscription.make<Model, Message>()(_entry => ({
+  location: Port.subscriptionEntry(ports.inbound.location, LocationReceived),
+}))
+
+const ResolveLocation = Command.define('ResolveLocation', {
+  args: { pathname: Schema.String, search: Schema.String },
+  messages: [SearchRouteSelected, InvalidSearchQuery],
+  execute: ({ pathname, search }) =>
+    Effect.match(searchRoute.parse(pathname.split('/').filter(Boolean), search), {
+      onFailure: () => InvalidSearchQuery(),
+      onSuccess: ([route]) =>
+        SearchRouteSelected({ ...route, page: route.page ?? 1 }),
+    }),
+})
+const NavigateToSearch = Command.define('NavigateToSearch', {
+  args: { q: Schema.String },
+  messages: [SearchNavigated],
+  execute: ({ q }) =>
+    Navigation.pushUrl(searchRoute.build({ q })).pipe(Effect.as(SearchNavigated())),
+})
+
+const update = (model: Model, message: Message) => {
+  switch (message._tag) {
+    case 'LocationReceived':
+      return {
+        model,
+        commands: [ResolveLocation(message.location)],
+      }
+    case 'SearchRouteSelected':
+      return { model: { ...model, route: message.route, invalidLocation: false } }
+    case 'InvalidSearchQuery':
+      return { model: { ...model, route: undefined, invalidLocation: true } }
+    case 'OpenSearch':
+      return { model, commands: [NavigateToSearch({ q: message.q })] }
+    case 'SearchNavigated':
+      return { model }
+  }
+}
+```
+
+The route Schema decodes `page` from the URL and rejects malformed or non-finite values. A missing page is deliberately normalized to `1`; failure becomes `InvalidSearchQuery` and the update marks the location invalid instead of silently accepting it. The `OpenSearch` message can come from a form submission; its Command builds the URL with the same route and pushes history. Use `Navigation.replaceUrl(searchRoute.build({ q }))` instead when editing the current history entry.
+
+The typed `location` Port carries `{ pathname, search }` from a host into an embedded app. Add both `ports` and `subscriptions` to that app's `makeElement` or `makeApplication` configuration. The host uses the returned embed handle's `ports.location.send(...)`; this validates the incoming value against the Schema before `LocationReceived` reaches the Model. A Port is a boundary, not a replacement for URL parsing or validation. Foldkit runs its own route handling for top-level applications; use a Port when an enclosing host explicitly owns location delivery.

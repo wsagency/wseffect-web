@@ -1,0 +1,13 @@
+#app { min-height: 100vh; }
+.starter-main {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 48rem;
+  margin-inline: auto;
+  padding: var(--space-6);
+}
+.starter-page {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+}

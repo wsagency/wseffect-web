@@ -1,0 +1,10 @@
+---
+title: Migration from Radix2Solid
+description: Adapt Radix2Solid usage to the published Themes view-helper package.
+section: Migration
+order: 1
+---
+
+`@wsagency/wseffect-themes` takes inspiration and adapted work from Radix Themes and radix2solid, but it is a Foldkit package with its own imports and view contracts—not a drop-in Solid component package. Replace framework-specific JSX/Solid composition with each exported helper's `view` API and pass the app's HtmlBuilder. Keep application state and event messages in Foldkit; stateful dialogs, menus, and tabs use Foldkit UI-backed helpers.
+
+Import styles from `@wsagency/wseffect-themes/styles.css`, not upstream package names. If you choose granular stylesheets, include the needed tokens and component files; do not combine overlapping `styles.css` and `components.css`. Compare each generated props reference and test keyboard/focus behavior instead of assuming identical props or semantics. The theme package retains license notices and states it is unofficial and unaffiliated; trademarks are not granted by its MIT licenses.

@@ -1,0 +1,16 @@
+---
+title: Foldkit UI
+description: Accessible stateful controls for applications using the Foldkit core.
+section: Foldkit UI
+order: 1
+---
+
+`@wsagency/wseffect-foldkit-ui` provides accessible stateful UI components as public subpath exports. Install alongside Foldkit and its required Effect peers: `pnpm add @wsagency/wseffect-foldkit-ui@0.1.0-rc.1 @wsagency/wseffect-foldkit@0.1.0-rc.1 effect@^4.0.5 @effect/platform-browser@^4.0.5`.
+
+For example, the `button` subpath exports its view:
+
+```ts compile
+import { view } from '@wsagency/wseffect-foldkit-ui/button'
+```
+
+Consult each generated subpath reference for the real declaration and required inputs; do not assume every component has the same state or event contract. This is an independently maintained snapshot of upstream `@foldkit/ui@0.168.0`; see [migration from upstream](/migration/from-foldkit-upstream/).

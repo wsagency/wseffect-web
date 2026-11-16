@@ -1,0 +1,19 @@
+---
+title: Core concepts
+description: Understand Foldkit's typed update architecture, effects, view builder, and browser lifecycle.
+section: Concepts
+order: 1
+---
+
+Foldkit structures UI as data and explicit transitions. The Model is application state; a Message names an event; `update` computes a new Model and optional effects; `view` projects that Model into a declarative tree. Browser work is isolated into Commands, Subscriptions, and Mount actions rather than hidden inside rendering.
+
+```ts compile
+type Model = { readonly count: number }
+type Message = { readonly _tag: 'Increment' } | { readonly _tag: 'Decrement' }
+const update = (model: Model, message: Message): Model =>
+  message._tag === 'Increment'
+    ? { count: model.count + 1 }
+    : { count: model.count - 1 }
+```
+
+The example is a pure transition; a running application also supplies a view and runtime configuration. Explore [Model–Message–Update–View](/concepts/model-message-update-view/), [Effect and Schema](/concepts/effect-and-schema/), [Commands, Subscriptions, and Mounts](/concepts/commands-subscriptions-mounts/), [Submodels and Folds](/concepts/submodels-and-folds/), [HTML Builder and Events](/concepts/html-builder-and-events/), [Routing and Ports](/concepts/routing-and-ports/), [Testing](/concepts/testing/), and [SSR and hydration](/concepts/ssr-and-hydration/). SSR/hydration is experimental in this release.

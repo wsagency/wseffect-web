@@ -1,0 +1,26 @@
+---
+title: Versioned persistence
+description: Store schema-encoded values with explicit migration and conflict policy.
+section: App
+order: 8
+---
+
+`persist<A, M>` creates a persistence service with an Effect `restore`, `save`/`saveDebounced`, and message `subscribe`. The conflict policy is required. `local-wins` never applies remote data to your Model. Storage is origin-local, not secure storage; never store secrets or use it for access control.
+
+```ts compile
+import { Result, Schema } from 'effect'
+import { persist } from '@wsagency/wseffect-app'
+const prefs = persist({
+  key: 'preferences', version: 1,
+  schema: Schema.Struct({ favorites: Schema.Array(Schema.String) }),
+  defaultValue: { favorites: [] }, conflictPolicy: 'local-wins',
+  migrate: (version, data) => version === 0
+    ? Result.succeed({ favorites: [] })
+    : Result.fail(data),
+  debounceMs: 150,
+  toMessage: (value) => ({ _tag: 'RemotePreferencesWon' as const, value }),
+  toFailureMessage: (failure) => ({ _tag: 'PersistenceFailed' as const, failure }),
+})
+```
+
+Stored envelope data uses the codec's encoded representation, which must be JSON-compatible. Migration receives raw old payload and returns the current decoded value, validated against the current codec. Restore failures return the default and are delivered once to the first subscriber; save/migration/sync failures use `toFailureMessage`.

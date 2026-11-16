@@ -1,0 +1,42 @@
+{
+  "name": "wseffect-web",
+  "version": "0.1.0-rc.1",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "generate": "node scripts/inventory.ts && node scripts/props.ts && node scripts/starters.ts && node scripts/api-reference.ts",
+    "dev": "pnpm generate && astro dev",
+    "build": "pnpm generate && astro build && node scripts/site-metadata.ts && node scripts/search.ts",
+    "check": "node scripts/check.ts",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.7",
+    "@wsagency/wseffect-app": "0.1.0-rc.1",
+    "@wsagency/wseffect-foldkit": "0.1.0-rc.1",
+    "@wsagency/wseffect-foldkit-ui": "0.1.0-rc.1",
+    "@wsagency/wseffect-themes": "0.1.0-rc.1",
+    "@wsagency/wseffect-vite-plugin": "0.1.0-rc.1",
+    "effect": "4.0.7"
+  },
+  "devDependencies": {
+    "@astrojs/mdx": "8.1.1",
+    "@playwright/test": "1.64.1",
+    "@types/node": "24.19.1",
+    "@types/turndown": "5.0.6",
+    "axe-core": "4.11.0",
+    "astro": "7.4.2",
+    "linkedom": "0.18.15",
+    "pagefind": "1.6.0",
+    "turndown": "7.2.5",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vite-plugin-pwa": "2.0.0",
+    "wrangler": "4.149.0"
+  }
+}

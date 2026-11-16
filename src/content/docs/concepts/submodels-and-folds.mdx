@@ -1,0 +1,10 @@
+---
+title: Submodels and Folds
+description: Compose focused child state and messages without losing parent ownership.
+section: Concepts
+order: 5
+---
+
+A child feature can own a focused slice of parent state and a narrower message type. Foldkit's submodel and fold helpers adapt child updates and views into the parent application, preserving one authoritative Model and routing child messages back through the parent transition. This is composition, not a second mutable store.
+
+Keep the child boundary explicit: identify how its Model is projected, how child messages are wrapped, and how updates return to the parent. For the precise public signatures, see the generated [Foldkit reference](/foldkit/).

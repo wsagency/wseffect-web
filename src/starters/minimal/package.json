@@ -1,0 +1,25 @@
+{
+  "name": "wseffect-starter-minimal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.5.0",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-browser": "4.0.7",
+    "@wsagency/wseffect-foldkit": "0.1.0-rc.1",
+    "@wsagency/wseffect-foldkit-ui": "0.1.0-rc.1",
+    "@wsagency/wseffect-themes": "0.1.0-rc.1",
+    "@wsagency/wseffect-vite-plugin": "0.1.0-rc.1",
+    "effect": "4.0.7"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  }
+}

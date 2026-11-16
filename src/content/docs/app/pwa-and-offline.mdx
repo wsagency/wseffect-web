@@ -1,0 +1,10 @@
+---
+title: PWA and offline behavior
+description: Configure precached primary pages and service-worker update prompts.
+section: App
+order: 4
+---
+
+When enabling PWA support, provide a web manifest with `name`, `short_name`, `start_url: '/'`, `display: 'standalone'`, theme and background colors, and PNG icons at 192×192 and 512×512. Pass primary page keys to `primaryPages`; these pages are required offline entry points. The app-shared chunks generated from app source are precached with the entry.
+
+Set `pwa: false` to disable service-worker installation while retaining the version poll and online application behavior. The default poll interval is five minutes; `versionPollMs` overrides it. Updates are prompt-based. A reload loses in-memory state; persist what must survive, and keep backend/data compatibility separate from asset retention.

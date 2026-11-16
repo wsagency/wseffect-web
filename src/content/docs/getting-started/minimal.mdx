@@ -1,0 +1,21 @@
+---
+title: Minimal application
+description: Create a small Foldkit Runtime application with a typed model and update loop.
+section: Getting started
+order: 2
+---
+
+The minimal starter demonstrates a direct Foldkit Runtime app, without the app package's page code generation or service-worker integration. Download [`wseffect-minimal-0.1.0-rc.1.tgz`](/starters/wseffect-minimal-0.1.0-rc.1.tgz); it is standalone and has a frozen lockfile.
+
+With Node.js `24.21.0` and pnpm `11.5.0`:
+
+```sh
+tar -xzf wseffect-minimal-0.1.0-rc.1.tgz
+cd wseffect-minimal
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Use the URL Vite prints. `pnpm build` creates production output; `pnpm typecheck` checks TypeScript. The minimal starter uses the standalone `foldkit()` Vite plugin, not the app package's build-ID integration: it does not derive an ID from Git, and `WSEFFECT_BUILD_ID` is not read by this plugin. If you need to set the Foldkit deployment identity, configure `foldkit({ buildId: 'release-hex-id' })` or set `FOLDKIT_BUILD_ID=release-hex-id` for the Vite process. The configured ID is public metadata, not a secret; use a value that changes when the deployment's rendering inputs change. The full app starter has a separate `WSEFFECT_BUILD_ID`/Git-derived contract.
+
+The starter keeps `Model`, `Message`, `update`, and `view` together in `src/main.ts`; use it as a compact learning example, then extract modules as the application grows. For the complete page architecture, see [Build an application](/getting-started/app/).

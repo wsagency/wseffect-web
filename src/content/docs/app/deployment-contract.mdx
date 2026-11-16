@@ -1,0 +1,17 @@
+---
+title: Deployment contract
+description: Serve immutable build assets safely across application releases.
+section: App
+order: 5
+---
+
+Publish one immutable deployment directory at a time and retain the current deployment plus the previous three. Old open tabs may request lazy page chunks after a new release; preserve their asset trees for that window.
+
+| Request | Required behavior |
+|---|---|
+| `/assets/*` | Fingerprinted files: `public, max-age=31536000, immutable`; missing file is 404, never app HTML. |
+| `/`, extensionless routes | Current `index.html`, `Cache-Control: no-cache`. |
+| `index.html`, `sw.js`, `version.json`, `manifest.webmanifest` | `Cache-Control: no-cache`. |
+| Unknown extensionless route | May fall back to current `index.html`. |
+
+The plugin writes `version.json` with the same build ID compiled into the application. Retention and prompt-before-reload cannot make incompatible APIs or stored data compatible. Plan those independently; an applied update reloads the document and drops in-memory state.

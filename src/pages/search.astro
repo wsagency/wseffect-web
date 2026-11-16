@@ -1,0 +1,19 @@
+---
+import DocsLayout from '../layouts/DocsLayout.astro'
+---
+<DocsLayout title="Search documentation" description="Search the wseffect documentation, API reference, guides, and examples." canonical="https://wseffect.com/search/">
+  <section data-pagefind-ignore="all">
+    <p class="eyebrow">Documentation search</p>
+    <h1>Search wseffect</h1>
+    <p class="lede">Find guides, package exports, component props, and examples across the published documentation.</p>
+    <div id="pagefind-search" aria-label="Search documentation"></div>
+    <noscript><p>Search requires JavaScript. Browse the <a href="/getting-started/">documentation index</a> or the <a href="/foldkit/">Foldkit API reference</a>.</p></noscript>
+  </section>
+  <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+  <script is:inline src="/pagefind/pagefind-ui.js" defer></script>
+  <script is:inline>
+    document.addEventListener('DOMContentLoaded', () => {
+      new PagefindUI({ element: '#pagefind-search', showSubResults: true, showImages: false, autofocus: false })
+    }, { once: true })
+  </script>
+</DocsLayout>

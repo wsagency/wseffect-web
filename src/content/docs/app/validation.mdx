@@ -1,0 +1,19 @@
+---
+title: Native constraint validation
+description: Project Model-owned validation onto browser validity and accessibility attributes.
+section: App
+order: 7
+---
+
+Keep validation as application Model data, then call `projectConstraintValidity` with an input, error ID, and `ValidationResult`. It returns `Result<void, ValidationProjectionError>`; invalid controls produce a typed failure rather than changing a second validation store.
+
+```ts compile
+import { Result } from 'effect'
+import { projectConstraintValidity, type ValidationResult } from '@wsagency/wseffect-app'
+function project(control: HTMLInputElement, result: ValidationResult) {
+  const projected = projectConstraintValidity(control, 'email-error', result)
+  if (Result.isFailure(projected)) console.error(projected.failure)
+}
+```
+
+This updates native custom validity and associated `aria-invalid`/`aria-describedby` state. The example's error reporting is contextual; production code should map the failure into its typed application Message.

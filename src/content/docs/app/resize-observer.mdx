@@ -1,0 +1,17 @@
+---
+title: ResizeObserver mount action
+description: Observe element dimensions with frame coalescing and teardown.
+section: App
+order: 13
+---
+
+`resizeObserverMount` returns a `MountAction`; attach it to the observed element with `h.OnMount(action)`. Changed dimensions are coalesced to a frame. Unmount disconnects the observer and cancels pending work. Unsupported observers and observer errors are typed result cases.
+
+```ts compile
+import { resizeObserverMount } from '@wsagency/wseffect-app'
+const observeSize = resizeObserverMount((result) => ({
+  _tag: 'ElementResized' as const, result,
+}))
+```
+
+Observation is read-only; it cannot prevent feedback loops if Model-driven layout changes trigger further resizes.

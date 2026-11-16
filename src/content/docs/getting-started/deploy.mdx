@@ -1,0 +1,12 @@
+---
+title: Deployment basics
+description: Deploy versioned app assets without breaking already-open clients.
+section: Getting started
+order: 4
+---
+
+A production app may have open tabs requesting lazy chunks from an older build. Publish each build into an immutable deployment directory, serve the current and previous three deployments' assets, and only then retire older assets. Do not make missing `/assets/*` paths fall through to the SPA document: return 404.
+
+Serve `/`, extensionless routes, `index.html`, `sw.js`, `version.json`, and the web manifest with `Cache-Control: no-cache`. Fingerprinted `/assets/*` files may use `public, max-age=31536000, immutable`; missing assets must remain 404. Unknown extensionless routes can return the current app shell. The app plugin's build ID is emitted to `version.json` and embedded in the app for update detection.
+
+A prompted reload discards in-memory state, and retaining old files does not make old clients compatible with a changed backend or persisted-data schema. Plan those compatibility windows separately. See the full [deployment contract](/app/deployment-contract/) and [PWA/offline behavior](/app/pwa-and-offline/).

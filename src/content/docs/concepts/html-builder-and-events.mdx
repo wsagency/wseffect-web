@@ -1,0 +1,17 @@
+---
+title: HTML Builder and Events
+description: Build typed declarative DOM trees and translate browser events to messages.
+section: Concepts
+order: 6
+---
+
+Foldkit's HTML builder represents DOM output as a typed tree. Supply children and attributes through the builder instead of mutating DOM from `view`; event handlers translate browser input into application messages. Keep event payloads narrow and convert browser-native values at the boundary.
+
+```ts compile
+import type { HtmlBuilder } from '@wsagency/wseffect-foldkit/html'
+type Message = { readonly _tag: 'NameChanged'; readonly value: string }
+const view = (model: { readonly name: string }, h: HtmlBuilder<Message>) =>
+  h.div([], [h.span([], [`Hello, ${model.name}`])])
+```
+
+For exact builder methods and event attribute types, use the [HTML module API reference](/foldkit/html/).

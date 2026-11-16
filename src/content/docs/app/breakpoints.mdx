@@ -1,0 +1,17 @@
+---
+title: Breakpoint subscription
+description: Send distinct Themes breakpoint changes into application state.
+section: App
+order: 9
+---
+
+Use a Subscription when responsive behavior affects application logic, not merely layout. The helper emits the initial breakpoint and subsequent distinct Themes token values (`xs`, `sm`, `md`, `lg`, `xl`, or `initial`) and removes every media-query listener on interruption.
+
+```ts compile
+import { breakpointSubscription, type Breakpoint } from '@wsagency/wseffect-app'
+const viewport = breakpointSubscription((value: Breakpoint) => ({
+  _tag: 'BreakpointChanged' as const, value,
+}))
+```
+
+The Message reports a measurement; the application still owns what that change means.

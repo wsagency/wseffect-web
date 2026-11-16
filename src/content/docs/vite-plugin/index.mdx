@@ -1,0 +1,19 @@
+---
+title: Vite plugin
+description: Configure Foldkit build integration and understand its build identity contract.
+section: Vite plugin
+order: 1
+---
+
+The `@wsagency/wseffect-vite-plugin` provides the `foldkit()` plugin factory for Foldkit development and builds. Install it with Foldkit, Vite `8.3.4`, Effect `^4.0.5`, and `@effect/platform-browser@^4.0.5`:
+
+```sh
+pnpm add -D @wsagency/wseffect-vite-plugin@0.1.0-rc.1 @wsagency/wseffect-foldkit@0.1.0-rc.1 vite@8.3.4 effect@^4.0.5 @effect/platform-browser@^4.0.5
+```
+
+```ts compile
+import { foldkit } from '@wsagency/wseffect-vite-plugin'
+export default { plugins: [foldkit()] }
+```
+
+For a standalone Foldkit plugin build, deployment identity is optional unless your server/client rendering needs a shared identity; set it with `foldkit({ buildId: 'deployment-id' })` or `FOLDKIT_BUILD_ID`. The plugin does not derive this value from Git. By contrast, the app package's Vite integration computes a `WSEFFECT_BUILD_ID` from the app's Git metadata or requires that variable for Git-less builds; it uses that ID for version polling and update detection. Keep the two package-specific settings distinct. See [Vite and chunking](/app/vite-and-chunking/) and the generated plugin export references. This is a separately maintained snapshot of upstream plugin source, not an upstream-affiliated release.

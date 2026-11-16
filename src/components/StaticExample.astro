@@ -1,0 +1,15 @@
+---
+import { renderStatic } from '../lib/render-static'
+import type { Html, HtmlBuilder } from '@wsagency/wseffect-foldkit/html'
+
+interface Props {
+  label?: string
+  view: (h: HtmlBuilder<never>) => Html
+}
+const { label = 'Rendered component', view } = Astro.props
+const html = renderStatic(view)
+---
+<figure class="static-example">
+  <figcaption>{label}</figcaption>
+  <div class="static-example__preview" set:html={html} />
+</figure>

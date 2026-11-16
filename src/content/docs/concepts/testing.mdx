@@ -1,0 +1,10 @@
+---
+title: Testing Foldkit applications
+description: Test transitions and effects at their boundaries with deterministic inputs.
+section: Concepts
+order: 8
+---
+
+Pure update logic can be tested with ordinary assertions: given a Model and Message, assert the returned state. Test Schema boundaries with valid and invalid values, and test effectful behavior through the public test/runtime helpers rather than reaching into implementation details. Browser integration tests should cover focus, keyboard behavior, portals, and teardown where DOM semantics matter.
+
+Keep tests aligned with ownership: a Command test checks requested work and its result message; a Subscription test checks emitted messages and interruption cleanup; a Mount test checks mount/unmount behavior. See generated [Foldkit test API](/foldkit/test/) and [Vitest integration](/foldkit/test/vitest/).

@@ -1,0 +1,25 @@
+---
+title: Build an application
+description: Set up lazy pages, code generation, Vite, and app-level browser capabilities.
+section: Getting started
+order: 3
+---
+
+The full starter combines `@wsagency/wseffect-app`, Foldkit, Themes, and Vite. Download [`wseffect-full-0.1.0-rc.1.tgz`](/starters/wseffect-full-0.1.0-rc.1.tgz). Its dependencies are public registry packages at exact RC versions; it does not depend on the source monorepo.
+
+Using Node.js `24.21.0` and pnpm `11.5.0`:
+
+```sh
+tar -xzf wseffect-full-0.1.0-rc.1.tgz
+cd wseffect-full
+pnpm install --frozen-lockfile
+pnpm exec wseffect-codegen .
+git init
+git add -A
+git commit -m "Initialize wseffect app"
+pnpm dev
+```
+
+The app plugin requires a stable build ID. For a normal Git-backed project it uses the source commit; in Git-less CI provide `WSEFFECT_BUILD_ID` with a stable 7–64 lowercase hexadecimal source identifier, never a random value. `pnpm build` runs the production build; `pnpm exec wseffect-codegen --check .` detects stale generated page routing before commit. `pwa: false` in the starter disables service-worker installation but keeps version polling active.
+
+Start from [pages and code generation](/app/pages-and-codegen/) and [Vite and chunking](/app/vite-and-chunking/); interactive examples are linked from [demos](/demos/).

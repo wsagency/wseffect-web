@@ -1,0 +1,17 @@
+---
+title: Clipboard command
+description: Request a user-activated clipboard write and handle its typed outcome.
+section: App
+order: 11
+---
+
+`clipboardCommand` returns a Foldkit Command that reports success or typed failure through your Message mapping. Permission denial and unavailable browser APIs are ordinary failures, not thrown exceptions. Clipboard writes require a secure context and user activation, so dispatch it from a direct user action.
+
+```ts compile
+import { clipboardCommand, type BrowserCommandResult } from '@wsagency/wseffect-app'
+const copy = (text: string) => clipboardCommand(text, (result: BrowserCommandResult) => ({
+  _tag: 'ClipboardFinished' as const, result,
+}))
+```
+
+Do not promise clipboard access outside browser policy.

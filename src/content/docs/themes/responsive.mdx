@@ -1,0 +1,15 @@
+---
+title: Responsive layout
+description: Combine breakpoint-aware layout utilities with the app breakpoint subscription.
+section: Themes
+order: 3
+---
+
+Themes ships responsive utility classes and breakpoint tokens; choose a layout-first approach and let CSS handle visual rearrangement where possible. The app's `breakpointSubscription` emits the initial and subsequent distinct breakpoint (`xs`, `sm`, `md`, `lg`, `xl`, or `initial`) when application logic genuinely depends on viewport size. It removes media-query listeners when interrupted.
+
+```ts compile
+import { breakpointSubscription } from '@wsagency/wseffect-app'
+const viewportChanges = breakpointSubscription((value) => ({ _tag: 'BreakpointChanged' as const, value }))
+```
+
+This is a Foldkit Subscription description, not an immediate standalone stream. Link it to the app's subscription lifecycle and handle the emitted Message in the Model. See the generated breakpoint API reference and [app helper recipe](/app/breakpoints/).

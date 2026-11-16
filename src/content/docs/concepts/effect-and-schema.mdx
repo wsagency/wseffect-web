@@ -1,0 +1,17 @@
+---
+title: Effect and Schema
+description: Model effects as typed computations and validate boundaries with Effect Schema.
+section: Concepts
+order: 3
+---
+
+wseffect uses Effect for computations that may require services, fail, or perform asynchronous work. Instead of performing network or browser operations during a view render, describe them as effects and interpret them through the runtime. Effect Schema provides codecs for validating untrusted values and deriving TypeScript types.
+
+```ts compile
+import { Schema } from 'effect'
+
+const Profile = Schema.Struct({ id: Schema.String, displayName: Schema.String })
+type Profile = typeof Profile.Type
+```
+
+Treat parsed URL values, persisted data, and server responses as untrusted until decoded. A schema does not make invalid external data valid; handle decode failures at the boundary.

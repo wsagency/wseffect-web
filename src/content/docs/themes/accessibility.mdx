@@ -1,0 +1,10 @@
+---
+title: Accessibility
+description: Preserve semantics, labels, focus, and keyboard interactions when composing controls.
+section: Themes
+order: 5
+---
+
+Accessible components help provide expected semantics and interaction, but cannot infer an application's meaning. Give controls accessible names, associate descriptions and errors, preserve heading order, and ensure focus remains visible. For dialogs and menus, verify keyboard entry/exit, focus movement, dismissal, and portal layering in the actual composed page.
+
+Do not replace a native control's semantics with visual styling alone. Model validation in application state, then project it to native validity and ARIA state with the app's `projectConstraintValidity` helper; see [validation](/app/validation/). Review [interactive examples](/demos/) with keyboard and assistive technology.

@@ -1,0 +1,10 @@
+---
+title: Migration from upstream Foldkit
+description: Use WS Agency package specifiers while retaining upstream snapshot attribution.
+section: Migration
+order: 2
+---
+
+The Foldkit, Foldkit UI, and Vite plugin packages publish independently maintained snapshots of upstream Foldkit `0.168.0` and its UI/plugin at commit `060271955cc2fdd34ddb5e17a64b6662268f79c5`. Replace upstream package specifiers with `@wsagency/wseffect-foldkit`, `@wsagency/wseffect-foldkit-ui`, and `@wsagency/wseffect-vite-plugin`; the public subpath exports are retained, but package names and maintenance channel differ.
+
+Install the coordinated RC version and required Effect peers; see [Getting started](/getting-started/). Check the generated API reference for exact public signatures. Do not infer that a future upstream release or upstream support policy applies to these packages. Source snapshot and release attribution are documented in each package's `UPSTREAM.md`; wseffect is not affiliated with or endorsed by Foldkit.
