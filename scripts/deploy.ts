@@ -37,7 +37,7 @@ export function cleanChildEnvironment(source: NodeJS.ProcessEnv = process.env): 
   return safeEnv(source)
 }
 
-async function command(commandName: string, args: readonly string[], options: { cwd: string; env?: NodeJS.ProcessEnv }): Promise<string> {
+export async function runCommand(commandName: string, args: readonly string[], options: { cwd: string; env?: NodeJS.ProcessEnv }): Promise<string> {
   return new Promise((resolveCommand, reject) => {
     const child = spawn(commandName, [...args], {
       cwd: options.cwd,
@@ -51,8 +51,15 @@ async function command(commandName: string, args: readonly string[], options: { 
     child.once('error', (error) => reject(new Error(`${commandName} could not start: ${error.message}`)))
     child.once('close', (status, signal) => {
       if (status !== 0) {
-        const details = Buffer.concat(stderr).toString('utf8').trim()
-        reject(new Error(`${commandName} ${args[0] ?? ''} failed (${signal ?? status})${details ? `: ${redact(details)}` : ''}`))
+        const output = [
+          stdout.length > 0 ? `stdout:\n${Buffer.concat(stdout).toString('utf8').trim()}` : '',
+          stderr.length > 0 ? `stderr:\n${Buffer.concat(stderr).toString('utf8').trim()}` : '',
+        ].filter(Boolean).join('\n')
+        const secrets = Object.entries(options.env ?? {})
+          .filter(([key, value]) => SECRET_KEYS.test(key) && value)
+          .map(([, value]) => value!)
+        const details = redact(secrets.reduce((text, secret) => redact(text, secret), output))
+        reject(new Error(`${commandName} ${args[0] ?? ''} failed (${signal ?? status})${details ? `:\n${details}` : ''}`))
         return
       }
       resolveCommand(Buffer.concat(stdout).toString('utf8').trim())
@@ -62,12 +69,17 @@ async function command(commandName: string, args: readonly string[], options: { 
 
 function redact(text: string, token?: string): string {
   const masked = token ? text.split(token).join('[redacted]') : text
-  return masked.replace(/((?:CLOUDFLARE_API_TOKEN|CF_API_TOKEN|WRANGLER_API_TOKEN)\s*[:=]\s*)[^\s"']+/gi, '$1[redacted]')
+  return masked
+    .replace(/((?:CLOUDFLARE_API_TOKEN|CF_API_TOKEN|WRANGLER_API_TOKEN)\s*[:=]\s*)[^\s"']+/gi, '$1[redacted]')
+    .replace(/(authorization\s*:\s*(?:bearer|basic)\s+)[^\s"']+/gi, '$1[redacted]')
+    .replace(/(https?:\/\/)[^\s/:@]+:[^\s/@]+@/gi, '$1[redacted]@')
+    .replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/gi, '[redacted private key]')
 }
 
 async function git(root: string, ...args: string[]): Promise<string> {
-  return command('git', args, { cwd: root })
+  return runCommand('git', args, { cwd: root })
 }
+
 
 export async function checkCheckout(root: string): Promise<string> {
   await git(root, 'fetch', '--prune', 'origin')
@@ -398,8 +410,8 @@ export interface DeploymentOptions {
 async function readScopedToken(): Promise<string> {
   try {
     const token = process.env.WSEFFECT_TOKEN_SOURCE === 'pass'
-      ? await command('pass', ['show', 'wseffect-web/CLOUDFLARE_API_TOKEN'], { cwd: ROOT })
-      : await command('secret-tool', ['lookup', 'service', 'wseffect-web', 'key', 'CLOUDFLARE_API_TOKEN'], { cwd: ROOT })
+      ? await runCommand('pass', ['show', 'wseffect-web/CLOUDFLARE_API_TOKEN'], { cwd: ROOT })
+      : await runCommand('secret-tool', ['lookup', 'service', 'wseffect-web', 'key', 'CLOUDFLARE_API_TOKEN'], { cwd: ROOT })
     if (!token || /\s/.test(token)) throw new Error('Secret store returned an empty or invalid Cloudflare token')
     return token
   } catch {
@@ -422,7 +434,7 @@ async function deployWithWrangler(
   try {
     await writeFile(outputPath, '', { mode: 0o600, flag: 'wx' })
     outputCreated = true
-    const output = await command(process.execPath, [join(worktree, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), 'deploy', '--message', sha], { cwd: worktree, env: childEnv })
+    const output = await runCommand(process.execPath, [join(worktree, 'node_modules', 'wrangler', 'bin', 'wrangler.js'), 'deploy', '--message', sha], { cwd: worktree, env: childEnv })
     console.log(redact(output, token))
     return parseWranglerDeploymentOutput(await readFile(outputPath, 'utf8'))
   } catch (error) {
@@ -601,15 +613,15 @@ export async function runDeployment(options: DeploymentOptions = {}): Promise<vo
     toolEnv.npm_config_globalconfig = npmConfigPath
     toolEnv.PNPM_CONFIG_GLOBALCONFIG = npmConfigPath
     toolEnv.npm_config_registry = REGISTRY_URL
-    const nodeVersion = await command('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'node', '--version'], { cwd: worktree, env: toolEnv })
+    const nodeVersion = await runCommand('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'node', '--version'], { cwd: worktree, env: toolEnv })
     if (nodeVersion !== `v${NODE_VERSION}`) throw new Error(`Pinned Node version mismatch: ${nodeVersion}`)
-    const pnpmVersion = await command('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', '--version'], { cwd: worktree, env: toolEnv })
+    const pnpmVersion = await runCommand('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', '--version'], { cwd: worktree, env: toolEnv })
     if (pnpmVersion !== PNPM_VERSION) throw new Error(`Pinned pnpm version mismatch: ${pnpmVersion}`)
-    await command('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', 'install', '--frozen-lockfile', `--registry=${REGISTRY_URL}`], { cwd: worktree, env: toolEnv })
+    await runCommand('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', 'install', '--frozen-lockfile', `--registry=${REGISTRY_URL}`], { cwd: worktree, env: toolEnv })
     await validateRegistryPins(worktree)
     await validateWranglerPin(worktree)
-    await command('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', 'build'], { cwd: worktree, env: toolEnv })
-    await command('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', 'check'], { cwd: worktree, env: toolEnv })
+    await runCommand('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', 'build'], { cwd: worktree, env: toolEnv })
+    await runCommand('mise', ['exec', `node@${NODE_VERSION}`, `pnpm@${PNPM_VERSION}`, '--', 'pnpm', 'check'], { cwd: worktree, env: toolEnv })
     const { docsPath, markdownPath, version } = await validateOutput(worktree, sha)
     if (!dryRun) {
       snapshotAstro = join(tempRoot, `assets-${sha}-${process.pid}`)

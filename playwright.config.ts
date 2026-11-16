@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
+import { resolve } from 'node:path'
+
+const diagnosticDir = process.env.WSEFFECT_PLAYWRIGHT_REPORT_DIR
 
 export default defineConfig({
   testDir: './e2e',
@@ -6,7 +9,10 @@ export default defineConfig({
   forbidOnly: true,
   retries: 0,
   workers: 1,
-  reporter: 'list',
+  outputDir: diagnosticDir ? resolve(diagnosticDir, 'artifacts') : 'test-results',
+  reporter: diagnosticDir
+    ? [['list'], ['html', { outputFolder: resolve(diagnosticDir, 'html'), open: 'never' }]]
+    : 'list',
   use: {
     baseURL: 'http://127.0.0.1:8787',
     trace: 'retain-on-failure',

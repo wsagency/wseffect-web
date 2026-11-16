@@ -16,6 +16,7 @@ import {
   normalizeGeneratedMarkdownPath,
   parseWranglerDeploymentOutput,
   recordSmokeResult,
+  runCommand,
   runDeployment,
   smokeProduction,
   validateRegistryConfig,
@@ -133,6 +134,30 @@ test('subprocess environment strips inherited Cloudflare credentials', () => {
   assert.equal(clean['npm_config_@wsagency:registry'], undefined)
   assert.equal(clean.CLOUDFLARE_ACCOUNT_ID, 'account')
   assert.equal(clean.OTHER, 'ok')
+})
+
+test('failed command exposes stdout and stderr diagnostics without credential leaks', async () => {
+  const root = await tempDir()
+  const secret = 'test-cloudflare-token-do-not-leak'
+  await writeFile(join(root, 'fail.mjs'), [
+    "process.stdout.write('Playwright assertion failed: expected heading\\n')",
+    "process.stdout.write('CLOUDFLARE_API_TOKEN=' + process.env.CLOUDFLARE_API_TOKEN + '\\n')",
+    "process.stderr.write('authorization: Bearer ' + process.env.CLOUDFLARE_API_TOKEN + '\\n')",
+    'process.exit(23)',
+  ].join('\n'))
+  await assert.rejects(
+    runCommand(process.execPath, [join(root, 'fail.mjs')], { cwd: root, env: { CLOUDFLARE_API_TOKEN: secret } }),
+    (error: unknown) => {
+      const message = (error as Error).message
+      assert.match(message, /Playwright assertion failed: expected heading/)
+      assert.match(message, /stdout:/)
+      assert.match(message, /stderr:/)
+      assert.match(message, /CLOUDFLARE_API_TOKEN=\[redacted\]/)
+      assert.match(message, /authorization: Bearer \[redacted\]/)
+      assert.equal(message.includes(secret), false)
+      return true
+    },
+  )
 })
 
 test('artifact inspection rejects absolute workspace paths and credential-like content without exposing bytes', async () => {

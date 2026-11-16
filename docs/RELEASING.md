@@ -25,6 +25,16 @@ mise exec node@24.21.0 pnpm@11.5.0 -- pnpm deploy:site -- --dry-run
 
 Dry-run performs the guarded checkout, toolchain, registry-pin, build/check, artifact, and retained-asset validations. It does not retrieve a credential, call Wrangler, or make a production HTTP request. Fix any failure in source and repeat from a new clean commit; do not edit the deploy worktree.
 
+To rerun the guarded browser gate for diagnostics while keeping Playwright traces, screenshots, and an HTML report after the temporary worktree is removed, set an external report directory and run **dry-run only** from the same clean, synchronized `main`:
+
+```sh
+mkdir -m 700 -p "$HOME/.cache/wseffect-work/release-web/browser-diagnostics"
+report="$(mktemp -d "$HOME/.cache/wseffect-work/release-web/browser-diagnostics/run.XXXXXXXX")"
+WSEFFECT_PLAYWRIGHT_REPORT_DIR="$report" mise exec node@24.21.0 pnpm@11.5.0 -- pnpm deploy:site -- --dry-run
+```
+
+The guard is unchanged; this does not retrieve credentials, invoke Wrangler, or contact production. The command prints the failed check's stdout/stderr; inspect `$report/html/index.html` and `$report/artifacts` for browser details. Do not pass deploy acknowledgements or use the non-dry-run command.
+
 ## Coordinated first-production bootstrap
 
 This sequence is approved only after the complete local acceptance pipeline and guarded dry-run succeed, and the deployment coordinator gives an explicit **GO**. That GO is not given by this runbook; do not infer it from successful checks or prior approval.
